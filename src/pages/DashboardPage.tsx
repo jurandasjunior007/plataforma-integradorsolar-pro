@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { TrendingUp, FileText, DollarSign, Clock, MessageSquare, Eye, Send, Loader2 } from 'lucide-react';
+import {
+  TrendingUp, FileText, DollarSign, Clock, Eye, Send, Loader2,
+  AlertTriangle, Trophy, BarChart3, Percent,
+} from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePosts } from '@/hooks/usePosts';
@@ -19,13 +22,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { profile, user } = useAuthContext();
   const [newPost, setNewPost] = useState('');
 
-  // Real data hooks
   const { posts, isLoading: loadingPosts, createPost } = usePosts();
   const { tasks, isLoading: loadingTasks, completeTask } = useTasks('today');
   const { pipelines } = usePipelines();
@@ -33,8 +36,9 @@ export default function DashboardPage() {
   const { stages } = useStages(firstPipelineId);
   const { deals } = useDeals(firstPipelineId);
 
-  // Audit log
   const companyId = profile?.company_id;
+
+  // Audit log
   const auditQuery = useQuery({
     queryKey: ['audit_log', companyId],
     enabled: !!companyId,
@@ -47,7 +51,6 @@ export default function DashboardPage() {
         .limit(30);
       if (error) throw error;
 
-      // Fetch user names
       const userIds = [...new Set((data ?? []).map(d => d.user_id).filter(Boolean))];
       let userMap: Record<string, string> = {};
       if (userIds.length > 0) {
@@ -68,6 +71,48 @@ export default function DashboardPage() {
   });
 
   const activities = auditQuery.data ?? [];
+
+  // KPIs
+  const kpis = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const activeDeals = deals.filter(d => d.status !== 'won' && d.status !== 'lost');
+    const wonDeals = deals.filter(d => d.status === 'won');
+    const wonThisMonth = wonDeals.filter(d => d.won_at && new Date(d.won_at) >= monthStart);
+    const totalValue = activeDeals.reduce((s, d) => s + (d.value ?? 0), 0);
+    const wonMonthValue = wonThisMonth.reduce((s, d) => s + (d.value ?? 0), 0);
+    const conversionRate = deals.length > 0 ? (wonDeals.length / deals.length) * 100 : 0;
+
+    // Deals without activity for 7+ days
+    const staleDeals = activeDeals.filter(d => {
+      const lastUpdate = new Date(d.updated_at);
+      return lastUpdate < sevenDaysAgo;
+    });
+
+    return {
+      activeCount: activeDeals.length,
+      totalValue,
+      wonMonthCount: wonThisMonth.length,
+      wonMonthValue,
+      conversionRate,
+      staleDeals,
+    };
+  }, [deals]);
+
+  // Funnel chart data
+  const funnelData = useMemo(() => {
+    return stages.map(s => {
+      const stageDeals = deals.filter(d => d.stage_id === s.id);
+      return {
+        name: s.name,
+        count: stageDeals.length,
+        value: stageDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
+        color: s.color ?? 'hsl(var(--primary))',
+      };
+    });
+  }, [stages, deals]);
 
   const handleCreatePost = async () => {
     if (!newPost.trim()) return;
@@ -96,18 +141,7 @@ export default function DashboardPage() {
     .join('')
     .toUpperCase() ?? 'U';
 
-  // Pipeline summary
-  const stageStats = stages.map(s => {
-    const stageDeals = deals.filter(d => d.stage_id === s.id);
-    return {
-      name: `${s.icon ?? ''} ${s.name}`,
-      count: stageDeals.length,
-      value: stageDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
-    };
-  });
-
-  const totalDeals = deals.length;
-  const totalValue = deals.reduce((sum, d) => sum + (d.value ?? 0), 0);
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <>
@@ -115,38 +149,89 @@ export default function DashboardPage() {
       <div className="flex-1 overflow-auto p-6 space-y-6">
         <h1 className="text-2xl font-bold">Resumo</h1>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Negócios ativos</span>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-muted-foreground">Negócios ativos</span>
+                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-              <p className="text-3xl font-bold">{totalDeals}</p>
+              <p className="text-2xl font-bold">{kpis.activeCount}</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Tarefas hoje</span>
-                <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-muted-foreground">Em negociação</span>
+                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-              <p className="text-3xl font-bold">{tasks.length}</p>
+              <p className="text-2xl font-bold">{fmt(kpis.totalValue)}</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Valor total no funil</span>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-muted-foreground">Fechados no mês</span>
+                <Trophy className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-              <p className="text-3xl font-bold">
-                {totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              <p className="text-2xl font-bold">{kpis.wonMonthCount}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{fmt(kpis.wonMonthValue)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-muted-foreground">Taxa conversão</span>
+                <Percent className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <p className="text-2xl font-bold">{kpis.conversionRate.toFixed(1)}%</p>
+            </CardContent>
+          </Card>
+          <Card className={kpis.staleDeals.length > 0 ? 'border-destructive/50' : ''}>
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-muted-foreground">Sem atividade 7d+</span>
+                <AlertTriangle className={`h-3.5 w-3.5 ${kpis.staleDeals.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`} />
+              </div>
+              <p className={`text-2xl font-bold ${kpis.staleDeals.length > 0 ? 'text-destructive' : ''}`}>
+                {kpis.staleDeals.length}
               </p>
             </CardContent>
           </Card>
         </div>
+
+        {/* Funnel chart */}
+        {funnelData.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                Funil de Conversão por Etapa
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={funnelData} layout="vertical" margin={{ left: 0, right: 20 }}>
+                  <XAxis type="number" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="name" type="category" width={120} fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip
+                    formatter={(value: number, name: string) => [
+                      name === 'count' ? `${value} negócio(s)` : fmt(value),
+                      name === 'count' ? 'Quantidade' : 'Valor',
+                    ]}
+                    contentStyle={{ fontSize: '12px', borderRadius: '8px' }}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20}>
+                    {funnelData.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} fillOpacity={0.7} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* 3-block layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -289,8 +374,44 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        {/* Follow-up alerts */}
+        {kpis.staleDeals.length > 0 && (
+          <Card className="border-destructive/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                Atenção necessária — Negócios sem atividade há 7+ dias
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {kpis.staleDeals.slice(0, 10).map(deal => {
+                  const daysStale = Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / (1000 * 60 * 60 * 24));
+                  return (
+                    <div
+                      key={deal.id}
+                      className="flex items-center justify-between p-2.5 rounded-lg bg-destructive/5 hover:bg-destructive/10 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/negocios/${deal.id}`)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{deal.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {deal.contact?.name ?? deal.organization?.name ?? '—'}
+                        </p>
+                      </div>
+                      <Badge variant="destructive" className="text-xs shrink-0">
+                        {daysStale}d sem atividade
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Pipeline summary table */}
-        {stageStats.length > 0 && (
+        {funnelData.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Situação dos Negócios</CardTitle>
@@ -306,13 +427,11 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {stageStats.map((row, i) => (
+                    {funnelData.map((row, i) => (
                       <tr key={i} className="border-b last:border-0">
                         <td className="py-2">{row.name}</td>
                         <td className="py-2 text-right">{row.count} negócio{row.count !== 1 ? 's' : ''}</td>
-                        <td className="py-2 text-right font-medium">
-                          {row.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </td>
+                        <td className="py-2 text-right font-medium">{fmt(row.value)}</td>
                       </tr>
                     ))}
                   </tbody>

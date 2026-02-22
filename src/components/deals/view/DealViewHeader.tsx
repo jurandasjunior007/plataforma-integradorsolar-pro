@@ -15,9 +15,10 @@ interface DealViewHeaderProps {
   stage: Stage;
   pipelineName: string;
   onBack: () => void;
+  onDuplicate?: () => void;
 }
 
-export function DealViewHeader({ deal, stage, pipelineName, onBack }: DealViewHeaderProps) {
+export function DealViewHeader({ deal, stage, pipelineName, onBack, onDuplicate }: DealViewHeaderProps) {
   const ownerInitials = deal.owner?.full_name
     ?.split(' ')
     .map((n) => n[0])
@@ -83,7 +84,7 @@ export function DealViewHeader({ deal, stage, pipelineName, onBack }: DealViewHe
             <DropdownMenuContent align="end">
               <DropdownMenuItem>Editar negócio</DropdownMenuItem>
               <DropdownMenuItem>Transferir responsável</DropdownMenuItem>
-              <DropdownMenuItem>Duplicar negócio</DropdownMenuItem>
+              <DropdownMenuItem onClick={onDuplicate}>Duplicar negócio</DropdownMenuItem>
               <DropdownMenuItem className="text-destructive">Excluir negócio</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
