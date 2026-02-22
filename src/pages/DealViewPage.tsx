@@ -1,10 +1,11 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Deal, Stage } from '@/types/crm';
 import { DealViewHeader } from '@/components/deals/view/DealViewHeader';
 import { DealStageStepper } from '@/components/deals/view/DealStageStepper';
 import { DealChecklistPanel } from '@/components/deals/view/DealChecklistPanel';
 import { DealTimelinePanel } from '@/components/deals/view/DealTimelinePanel';
+import { StageValidationModal } from '@/components/deals/view/StageValidationModal';
 
 // Mock data - same stages as DealsPage
 const mockStages: Stage[] = [
@@ -31,19 +32,57 @@ const mockDeal: Deal = {
   owner: { id: 'u1', company_id: 'c1', full_name: 'João Vendedor', email: 'joao@demo.com', is_active: true },
 };
 
+// Mock pending items for validation demo
+const mockPendingItems = [
+  { title: 'Visita técnica realizada', is_required: true, block_stage_advance: true },
+  { title: 'Fotos do local enviadas', is_required: true, block_stage_advance: true },
+  { title: 'Projeto dimensionado', is_required: true, block_stage_advance: false },
+];
+
 export default function DealViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [deal, setDeal] = useState<Deal>(mockDeal);
+  const [validationModal, setValidationModal] = useState<{
+    open: boolean;
+    targetStageId: string;
+    targetStageName: string;
+    pendingItems: typeof mockPendingItems;
+  }>({ open: false, targetStageId: '', targetStageName: '', pendingItems: [] });
 
   const currentStage = useMemo(
     () => mockStages.find((s) => s.id === deal.stage_id) ?? mockStages[0],
     [deal.stage_id]
   );
 
-  const handleStageChange = (stageId: string) => {
-    // TODO: check for pending mandatory checklists before allowing
+  const handleStageChange = useCallback((stageId: string) => {
+    const targetStage = mockStages.find(s => s.id === stageId);
+    if (!targetStage) return;
+
+    // Check if moving forward
+    const currentIdx = mockStages.findIndex(s => s.id === deal.stage_id);
+    const targetIdx = mockStages.findIndex(s => s.id === stageId);
+
+    if (targetIdx > currentIdx) {
+      // TODO: Replace with real checklist validation from DB
+      const pending = mockPendingItems.filter(i => i.is_required);
+      if (pending.length > 0) {
+        setValidationModal({
+          open: true,
+          targetStageId: stageId,
+          targetStageName: targetStage.name,
+          pendingItems: pending,
+        });
+        return;
+      }
+    }
+
     setDeal((prev) => ({ ...prev, stage_id: stageId }));
+  }, [deal.stage_id]);
+
+  const handleForceAdvance = () => {
+    setDeal((prev) => ({ ...prev, stage_id: validationModal.targetStageId }));
+    setValidationModal(prev => ({ ...prev, open: false }));
   };
 
   return (
@@ -77,6 +116,15 @@ export default function DealViewPage() {
           </div>
         </div>
       </div>
+
+      {/* Validation Modal */}
+      <StageValidationModal
+        open={validationModal.open}
+        onClose={() => setValidationModal(prev => ({ ...prev, open: false }))}
+        onConfirm={handleForceAdvance}
+        pendingItems={validationModal.pendingItems}
+        targetStageName={validationModal.targetStageName}
+      />
     </div>
   );
 }

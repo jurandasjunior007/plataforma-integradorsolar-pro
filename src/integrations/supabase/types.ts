@@ -132,15 +132,101 @@ export type Database = {
           },
         ]
       }
+      automation_actions: {
+        Row: {
+          action_config: Json | null
+          action_type: string
+          automation_id: string
+          company_id: string
+          created_at: string
+          id: string
+          position: number
+        }
+        Insert: {
+          action_config?: Json | null
+          action_type: string
+          automation_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          position?: number
+        }
+        Update: {
+          action_config?: Json | null
+          action_type?: string
+          automation_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_actions_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_actions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_conditions: {
+        Row: {
+          automation_id: string
+          condition_field: string
+          condition_operator: string
+          condition_value: string
+          id: string
+          logic_group: string
+          position: number
+        }
+        Insert: {
+          automation_id: string
+          condition_field: string
+          condition_operator?: string
+          condition_value: string
+          id?: string
+          logic_group?: string
+          position?: number
+        }
+        Update: {
+          automation_id?: string
+          condition_field?: string
+          condition_operator?: string
+          condition_value?: string
+          id?: string
+          logic_group?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_conditions_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automations: {
         Row: {
           action_config: Json | null
           action_type: string
           company_id: string
           created_at: string
+          description: string | null
           id: string
           is_active: boolean
           name: string
+          pipeline_id: string | null
+          stage_id: string | null
           trigger_config: Json | null
           trigger_event: string
         }
@@ -149,9 +235,12 @@ export type Database = {
           action_type: string
           company_id: string
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          pipeline_id?: string | null
+          stage_id?: string | null
           trigger_config?: Json | null
           trigger_event: string
         }
@@ -160,15 +249,86 @@ export type Database = {
           action_type?: string
           company_id?: string
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          pipeline_id?: string | null
+          stage_id?: string | null
           trigger_config?: Json | null
           trigger_event?: string
         }
         Relationships: [
           {
             foreignKeyName: "automations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automations_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automations_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_items: {
+        Row: {
+          block_stage_advance: boolean
+          checklist_id: string
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_required: boolean
+          linked_field: string | null
+          position: number
+          title: string
+        }
+        Insert: {
+          block_stage_advance?: boolean
+          checklist_id: string
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_required?: boolean
+          linked_field?: string | null
+          position?: number
+          title: string
+        }
+        Update: {
+          block_stage_advance?: boolean
+          checklist_id?: string
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_required?: boolean
+          linked_field?: string | null
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_items_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "stage_checklists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_items_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -482,6 +642,7 @@ export type Database = {
           completed_by: string | null
           deal_id: string
           id: string
+          item_id: string | null
           response: string | null
         }
         Insert: {
@@ -491,6 +652,7 @@ export type Database = {
           completed_by?: string | null
           deal_id: string
           id?: string
+          item_id?: string | null
           response?: string | null
         }
         Update: {
@@ -500,6 +662,7 @@ export type Database = {
           completed_by?: string | null
           deal_id?: string
           id?: string
+          item_id?: string | null
           response?: string | null
         }
         Relationships: [
@@ -515,6 +678,13 @@ export type Database = {
             columns: ["deal_id"]
             isOneToOne: false
             referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_checklist_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_items"
             referencedColumns: ["id"]
           },
         ]
@@ -1130,34 +1300,46 @@ export type Database = {
       }
       stage_checklists: {
         Row: {
+          block_stage_advance: boolean
           company_id: string
           created_at: string
+          description: string | null
           id: string
+          is_active: boolean
           is_required: boolean
           item_type: string
           position: number
           stage_id: string
           title: string
+          version: number
         }
         Insert: {
+          block_stage_advance?: boolean
           company_id: string
           created_at?: string
+          description?: string | null
           id?: string
+          is_active?: boolean
           is_required?: boolean
           item_type?: string
           position?: number
           stage_id: string
           title: string
+          version?: number
         }
         Update: {
+          block_stage_advance?: boolean
           company_id?: string
           created_at?: string
+          description?: string | null
           id?: string
+          is_active?: boolean
           is_required?: boolean
           item_type?: string
           position?: number
           stage_id?: string
           title?: string
+          version?: number
         }
         Relationships: [
           {
