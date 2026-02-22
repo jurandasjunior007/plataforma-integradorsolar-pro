@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Settings, Users, Workflow, Webhook, Layers, CheckSquare, SlidersHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
 
 export default function AdminPage() {
+  const navigate = useNavigate();
   return (
     <>
       <TopBar />
@@ -60,7 +62,7 @@ export default function AdminPage() {
                 { title: 'Campos Obrigatórios', desc: 'Definir campos obrigatórios por etapa', icon: Settings },
                 { title: 'Automações por Etapa', desc: 'Ações automáticas ao mudar de etapa', icon: Workflow },
               ].map((item, i) => (
-                <Card key={i} className="cursor-pointer hover:border-primary/40 transition-colors">
+                <Card key={i} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => navigate('/admin/deal-config')}>
                   <CardContent className="pt-6 flex items-start gap-3">
                     <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <item.icon className="h-4 w-4 text-primary" />
