@@ -696,6 +696,7 @@ export type Database = {
           deal_id: string
           from_stage_id: string | null
           id: string
+          moved_by_user_id: string | null
           to_stage_id: string | null
         }
         Insert: {
@@ -704,6 +705,7 @@ export type Database = {
           deal_id: string
           from_stage_id?: string | null
           id?: string
+          moved_by_user_id?: string | null
           to_stage_id?: string | null
         }
         Update: {
@@ -712,6 +714,7 @@ export type Database = {
           deal_id?: string
           from_stage_id?: string | null
           id?: string
+          moved_by_user_id?: string | null
           to_stage_id?: string | null
         }
         Relationships: [
@@ -744,6 +747,9 @@ export type Database = {
           contact_id: string | null
           created_at: string
           custom_fields: Json | null
+          deleted_at: string | null
+          entered_pipeline_at: string
+          entered_stage_at: string
           expected_close_date: string | null
           id: string
           lost_at: string | null
@@ -753,6 +759,7 @@ export type Database = {
           pipeline_id: string
           position: number
           stage_id: string | null
+          status: string
           tags: string[] | null
           title: string
           updated_at: string
@@ -764,6 +771,9 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           custom_fields?: Json | null
+          deleted_at?: string | null
+          entered_pipeline_at?: string
+          entered_stage_at?: string
           expected_close_date?: string | null
           id?: string
           lost_at?: string | null
@@ -773,6 +783,7 @@ export type Database = {
           pipeline_id: string
           position?: number
           stage_id?: string | null
+          status?: string
           tags?: string[] | null
           title: string
           updated_at?: string
@@ -784,6 +795,9 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           custom_fields?: Json | null
+          deleted_at?: string | null
+          entered_pipeline_at?: string
+          entered_stage_at?: string
           expected_close_date?: string | null
           id?: string
           lost_at?: string | null
@@ -793,6 +807,7 @@ export type Database = {
           pipeline_id?: string
           position?: number
           stage_id?: string | null
+          status?: string
           tags?: string[] | null
           title?: string
           updated_at?: string
@@ -1413,13 +1428,18 @@ export type Database = {
         Row: {
           assigned_to: string | null
           company_id: string
+          completed_at: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
           deal_id: string | null
+          deleted_at: string | null
           description: string | null
           due_date: string | null
           id: string
+          priority: string
+          related_id: string | null
+          related_type: string | null
           status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string
@@ -1427,13 +1447,18 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           company_id: string
+          completed_at?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
           deal_id?: string | null
+          deleted_at?: string | null
           description?: string | null
           due_date?: string | null
           id?: string
+          priority?: string
+          related_id?: string | null
+          related_type?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string
@@ -1441,13 +1466,18 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           company_id?: string
+          completed_at?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
           deal_id?: string | null
+          deleted_at?: string | null
           description?: string | null
           due_date?: string | null
           id?: string
+          priority?: string
+          related_id?: string | null
+          related_type?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string
