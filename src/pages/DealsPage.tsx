@@ -1,73 +1,74 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Filter, Eye, Settings, ChevronDown } from 'lucide-react';
+import { Filter, Eye, Settings, ChevronDown, Loader2 } from 'lucide-react';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
-import { DealDrawer } from '@/components/deals/DealDrawer';
 import { NewDealDialog } from '@/components/deals/NewDealDialog';
-import type { Deal, Stage } from '@/types/crm';
-
-// Mock data
-const mockStages: Stage[] = [
-  { id: 's1', pipeline_id: 'p1', company_id: 'c1', name: 'Abordagem/Qualificação', icon: '💎', color: '#6366f1', position: 0 },
-  { id: 's2', pipeline_id: 'p1', company_id: 'c1', name: 'Apresentação Proposta', icon: '📋', color: '#f59e0b', position: 1 },
-  { id: 's3', pipeline_id: 'p1', company_id: 'c1', name: 'Negociação / Fechamento', icon: '📄', color: '#10b981', position: 2 },
-  { id: 's4', pipeline_id: 'p1', company_id: 'c1', name: 'Trâmites Negociais', icon: '⚙️', color: '#8b5cf6', position: 3 },
-  { id: 's5', pipeline_id: 'p1', company_id: 'c1', name: 'Assinatura de Contrato', icon: '✅', color: '#ef4444', position: 4 },
-];
-
-const generateDeals = (): Deal[] => {
-  const names = [
-    'Maria Silva', 'João Santos', 'Carlos Ferreira', 'Ana Oliveira', 'Pedro Costa',
-    'Lucia Almeida', 'Ricardo Lima', 'Fernanda Souza', 'Eduardo Ribeiro', 'Patricia Nunes',
-  ];
-  return names.map((name, i) => ({
-    id: `d${i + 1}`,
-    company_id: 'c1',
-    pipeline_id: 'p1',
-    stage_id: mockStages[i % 5].id,
-    title: `${name} (#${1000 + i})`,
-    value: Math.floor(Math.random() * 80000) + 10000,
-    tags: [],
-    custom_fields: {},
-    position: i,
-    created_at: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_at: new Date().toISOString(),
-    contact: { id: `ct${i}`, company_id: 'c1', name, email: `${name.toLowerCase().replace(' ', '.')}@email.com`, created_at: '' },
-    owner: { id: `u1`, company_id: 'c1', full_name: 'Vendedor Demo', email: 'vendedor@demo.com', is_active: true },
-  }));
-};
+import { usePipelines, useStages } from '@/hooks/usePipelines';
+import { useDeals } from '@/hooks/useDeals';
+import type { DealRow } from '@/hooks/useDeals';
+import { toast } from '@/hooks/use-toast';
 
 export default function DealsPage() {
   const navigate = useNavigate();
-  const [deals, setDeals] = useState<Deal[]>(generateDeals);
-  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { pipelines, isLoading: loadingPipelines } = usePipelines();
+  const [selectedPipeline, setSelectedPipeline] = useState('');
   const [newDealOpen, setNewDealOpen] = useState(false);
-  const [selectedPipeline, setSelectedPipeline] = useState('p1');
 
-  const handleDealClick = (deal: Deal) => {
+  // Auto-select first pipeline
+  if (!selectedPipeline && pipelines.length > 0) {
+    setSelectedPipeline(pipelines[0].id);
+  }
+
+  const { stages, isLoading: loadingStages } = useStages(selectedPipeline || undefined);
+  const { deals, taskStatusMap, isLoading: loadingDeals, createDeal, moveDeal, deleteDeal, duplicateDeal } = useDeals(selectedPipeline || undefined);
+
+  const handleDealClick = (deal: DealRow) => {
     navigate(`/negocios/${deal.id}`);
   };
 
-  const handleDealMove = (dealId: string, newStageId: string) => {
-    setDeals((prev) =>
-      prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d))
-    );
+  const handleDealMove = async (dealId: string, fromStageId: string, newStageId: string) => {
+    try {
+      await moveDeal.mutateAsync({ dealId, fromStageId, toStageId: newStageId });
+    } catch {
+      toast({ title: 'Erro ao mover negócio', variant: 'destructive' });
+    }
+  };
+
+  const handleDuplicate = async (dealId: string) => {
+    try {
+      await duplicateDeal.mutateAsync(dealId);
+      toast({ title: 'Negócio duplicado' });
+    } catch {
+      toast({ title: 'Erro ao duplicar', variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async (dealId: string) => {
+    try {
+      await deleteDeal.mutateAsync(dealId);
+      toast({ title: 'Negócio excluído' });
+    } catch {
+      toast({ title: 'Erro ao excluir', variant: 'destructive' });
+    }
+  };
+
+  const handleCreateDeal = async (input: Parameters<typeof createDeal.mutateAsync>[0]) => {
+    return createDeal.mutateAsync(input);
   };
 
   const pipelineSelector = (
     <div className="flex items-center gap-2">
       <Select value={selectedPipeline} onValueChange={setSelectedPipeline}>
         <SelectTrigger className="h-9 w-[220px] bg-secondary border-none">
-          <SelectValue />
+          <SelectValue placeholder="Selecionar funil" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="p1">🔆 Vendas - Energia Solar</SelectItem>
-          <SelectItem value="p2">🔧 Pós-Venda</SelectItem>
+          {pipelines.map(p => (
+            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
@@ -82,37 +83,49 @@ export default function DealsPage() {
         Filtros
         <ChevronDown className="h-3 w-3" />
       </Button>
-
-      <Button variant="outline" size="sm" className="gap-1 h-9">
-        <Settings className="h-3.5 w-3.5" />
-        Menu
-        <ChevronDown className="h-3 w-3" />
-      </Button>
     </div>
   );
+
+  const isLoading = loadingPipelines || loadingStages || loadingDeals;
 
   return (
     <>
       <TopBar onNewDeal={() => setNewDealOpen(true)} pipelineSelector={pipelineSelector} />
-      <div className="flex-1 overflow-hidden bg-kanban-bg">
-        <KanbanBoard
-          stages={mockStages}
-          deals={deals}
-          onDealClick={handleDealClick}
-          onDealMove={handleDealMove}
-        />
+      <div className="flex-1 overflow-hidden bg-background">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : stages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-muted-foreground">
+                {pipelines.length === 0 ? 'Nenhum funil configurado.' : 'Nenhuma etapa configurada neste funil.'}
+              </p>
+              <Button variant="link" size="sm" onClick={() => navigate('/admin')}>
+                Ir para Administração →
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <KanbanBoard
+            stages={stages}
+            deals={deals}
+            taskStatusMap={taskStatusMap}
+            onDealClick={handleDealClick}
+            onDealMove={handleDealMove}
+            onDealDuplicate={handleDuplicate}
+            onDealDelete={handleDelete}
+          />
+        )}
       </div>
-
-      <DealDrawer
-        deal={selectedDeal}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-      />
 
       <NewDealDialog
         open={newDealOpen}
         onClose={() => setNewDealOpen(false)}
-        stages={mockStages}
+        stages={stages}
+        pipelineId={selectedPipeline}
+        onCreateDeal={handleCreateDeal}
       />
     </>
   );
