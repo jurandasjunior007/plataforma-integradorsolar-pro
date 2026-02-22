@@ -7,12 +7,16 @@ import { AuthProvider, useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import AuthPage from "@/pages/AuthPage";
 import DashboardPage from "@/pages/DashboardPage";
-import ClientsPage from "@/pages/ClientsPage";
 import DealsPage from "@/pages/DealsPage";
 import DocumentsPage from "@/pages/DocumentsPage";
 import ProductsPage from "@/pages/ProductsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import AdminPage from "@/pages/AdminPage";
+import PessoasPage from "@/pages/PessoasPage";
+import EmpresasPage from "@/pages/EmpresasPage";
+import EnderecosPage from "@/pages/EnderecosPage";
+import ImportacaoPage from "@/pages/ImportacaoPage";
+import DuplicidadesPage from "@/pages/DuplicidadesPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,7 +52,12 @@ const App = () => (
             <Route path="/auth" element={<AuthRoute><AuthPage /></AuthRoute>} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/clientes" element={<ClientsPage />} />
+              <Route path="/cadastro/pessoas" element={<PessoasPage />} />
+              <Route path="/cadastro/empresas" element={<EmpresasPage />} />
+              <Route path="/cadastro/enderecos" element={<EnderecosPage />} />
+              <Route path="/cadastro/importacao" element={<ImportacaoPage />} />
+              <Route path="/cadastro/duplicidades" element={<DuplicidadesPage />} />
+              <Route path="/clientes" element={<Navigate to="/cadastro/pessoas" replace />} />
               <Route path="/negocios" element={<DealsPage />} />
               <Route path="/documentos" element={<DocumentsPage />} />
               <Route path="/produtos" element={<ProductsPage />} />
