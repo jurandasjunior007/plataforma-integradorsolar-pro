@@ -17,6 +17,7 @@ import EmpresasPage from "@/pages/EmpresasPage";
 import EnderecosPage from "@/pages/EnderecosPage";
 import ImportacaoPage from "@/pages/ImportacaoPage";
 import DuplicidadesPage from "@/pages/DuplicidadesPage";
+import DealViewPage from "@/pages/DealViewPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => (
               <Route path="/cadastro/duplicidades" element={<DuplicidadesPage />} />
               <Route path="/clientes" element={<Navigate to="/cadastro/pessoas" replace />} />
               <Route path="/negocios" element={<DealsPage />} />
+              <Route path="/negocios/:id" element={<DealViewPage />} />
               <Route path="/documentos" element={<DocumentsPage />} />
               <Route path="/produtos" element={<ProductsPage />} />
               <Route path="/relatorios" element={<ReportsPage />} />

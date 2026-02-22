@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +42,7 @@ const generateDeals = (): Deal[] => {
 };
 
 export default function DealsPage() {
+  const navigate = useNavigate();
   const [deals, setDeals] = useState<Deal[]>(generateDeals);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -48,8 +50,7 @@ export default function DealsPage() {
   const [selectedPipeline, setSelectedPipeline] = useState('p1');
 
   const handleDealClick = (deal: Deal) => {
-    setSelectedDeal(deal);
-    setDrawerOpen(true);
+    navigate(`/negocios/${deal.id}`);
   };
 
   const handleDealMove = (dealId: string, newStageId: string) => {

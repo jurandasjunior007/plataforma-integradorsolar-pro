@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Settings, Users, Workflow, Webhook, Layers } from 'lucide-react';
+import { Plus, Settings, Users, Workflow, Webhook, Layers, CheckSquare, SlidersHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function AdminPage() {
@@ -16,8 +16,9 @@ export default function AdminPage() {
         <h1 className="text-2xl font-bold">Administração</h1>
 
         <Tabs defaultValue="pipelines">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="pipelines" className="gap-1"><Layers className="h-3 w-3" />Funis</TabsTrigger>
+            <TabsTrigger value="deal-config" className="gap-1"><CheckSquare className="h-3 w-3" />Config. Negócios</TabsTrigger>
             <TabsTrigger value="users" className="gap-1"><Users className="h-3 w-3" />Usuários</TabsTrigger>
             <TabsTrigger value="automations" className="gap-1"><Workflow className="h-3 w-3" />Automações</TabsTrigger>
             <TabsTrigger value="webhooks" className="gap-1"><Webhook className="h-3 w-3" />Webhooks</TabsTrigger>
@@ -46,6 +47,40 @@ export default function AdminPage() {
                 </CardContent>
               </Card>
             ))}
+          </TabsContent>
+
+          <TabsContent value="deal-config" className="space-y-4">
+            <h2 className="text-lg font-semibold">Configuração de Negócios</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { title: 'Gerenciar Funis', desc: 'Criar e editar funis de vendas', icon: Layers },
+                { title: 'Gerenciar Etapas', desc: 'Configurar etapas de cada funil', icon: SlidersHorizontal },
+                { title: 'Configurar Checklists', desc: 'Definir itens obrigatórios por etapa', icon: CheckSquare },
+                { title: 'Regras Condicionais', desc: 'Regras de exibição de campos e checklists', icon: Workflow },
+                { title: 'Campos Obrigatórios', desc: 'Definir campos obrigatórios por etapa', icon: Settings },
+                { title: 'Automações por Etapa', desc: 'Ações automáticas ao mudar de etapa', icon: Workflow },
+              ].map((item, i) => (
+                <Card key={i} className="cursor-pointer hover:border-primary/40 transition-colors">
+                  <CardContent className="pt-6 flex items-start gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <item.icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{item.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <Card>
+              <CardContent className="pt-6">
+                <Button variant="outline" className="gap-2">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Campos personalizados (em breve)
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="users" className="space-y-4">
