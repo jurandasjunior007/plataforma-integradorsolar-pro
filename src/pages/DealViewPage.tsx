@@ -1,129 +1,138 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useMemo, useCallback } from 'react';
-import type { Deal, Stage } from '@/types/crm';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { DealViewHeader } from '@/components/deals/view/DealViewHeader';
 import { DealStageStepper } from '@/components/deals/view/DealStageStepper';
 import { DealChecklistPanel } from '@/components/deals/view/DealChecklistPanel';
 import { DealTimelinePanel } from '@/components/deals/view/DealTimelinePanel';
 import { StageValidationModal } from '@/components/deals/view/StageValidationModal';
-
-// Mock data - same stages as DealsPage
-const mockStages: Stage[] = [
-  { id: 's1', pipeline_id: 'p1', company_id: 'c1', name: 'Abordagem', icon: '💎', color: '#6366f1', position: 0 },
-  { id: 's2', pipeline_id: 'p1', company_id: 'c1', name: 'Proposta', icon: '📋', color: '#f59e0b', position: 1 },
-  { id: 's3', pipeline_id: 'p1', company_id: 'c1', name: 'Negociação', icon: '📄', color: '#10b981', position: 2 },
-  { id: 's4', pipeline_id: 'p1', company_id: 'c1', name: 'Assinatura', icon: '⚙️', color: '#8b5cf6', position: 3 },
-  { id: 's5', pipeline_id: 'p1', company_id: 'c1', name: 'Pagamento', icon: '✅', color: '#ef4444', position: 4 },
-];
-
-const mockDeal: Deal = {
-  id: 'd1',
-  company_id: 'c1',
-  pipeline_id: 'p1',
-  stage_id: 's2',
-  title: 'Maria Silva (#1001)',
-  value: 45000,
-  tags: ['residencial'],
-  custom_fields: {},
-  position: 0,
-  created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-  updated_at: new Date().toISOString(),
-  contact: { id: 'ct1', company_id: 'c1', name: 'Maria Silva', email: 'maria@email.com', created_at: '' },
-  owner: { id: 'u1', company_id: 'c1', full_name: 'João Vendedor', email: 'joao@demo.com', is_active: true },
-};
-
-// Mock pending items for validation demo
-const mockPendingItems = [
-  { title: 'Visita técnica realizada', is_required: true, block_stage_advance: true },
-  { title: 'Fotos do local enviadas', is_required: true, block_stage_advance: true },
-  { title: 'Projeto dimensionado', is_required: true, block_stage_advance: false },
-];
+import { NewDealDialog } from '@/components/deals/NewDealDialog';
+import { useDealDetail } from '@/hooks/useDealDetail';
+import { useStages } from '@/hooks/usePipelines';
+import { useDeals } from '@/hooks/useDeals';
+import { toast } from '@/hooks/use-toast';
 
 export default function DealViewPage() {
-  const { id } = useParams();
+  const { id: dealId } = useParams();
   const navigate = useNavigate();
-  const [deal, setDeal] = useState<Deal>(mockDeal);
+  const [newDealOpen, setNewDealOpen] = useState(false);
+
+  console.log('[DealViewPage] dealId from params:', dealId);
+
+  const { data: deal, isLoading, error } = useDealDetail(dealId);
+  const { stages, isLoading: loadingStages } = useStages(deal?.pipeline_id ?? undefined);
+  const { moveDeal, createDeal } = useDeals(deal?.pipeline_id ?? undefined);
+
+  console.log('[DealViewPage] deal loaded:', deal?.id, deal?.title);
+
   const [validationModal, setValidationModal] = useState<{
     open: boolean;
     targetStageId: string;
     targetStageName: string;
-    pendingItems: typeof mockPendingItems;
+    pendingItems: { title: string; is_required: boolean; block_stage_advance: boolean }[];
   }>({ open: false, targetStageId: '', targetStageName: '', pendingItems: [] });
 
   const currentStage = useMemo(
-    () => mockStages.find((s) => s.id === deal.stage_id) ?? mockStages[0],
-    [deal.stage_id]
+    () => stages.find((s) => s.id === deal?.stage_id) ?? stages[0],
+    [deal?.stage_id, stages]
   );
 
-  const handleStageChange = useCallback((stageId: string) => {
-    const targetStage = mockStages.find(s => s.id === stageId);
-    if (!targetStage) return;
+  const handleStageChange = useCallback(async (stageId: string) => {
+    if (!deal) return;
+    const fromStageId = deal.stage_id ?? '';
+    if (stageId === fromStageId) return;
 
-    // Check if moving forward
-    const currentIdx = mockStages.findIndex(s => s.id === deal.stage_id);
-    const targetIdx = mockStages.findIndex(s => s.id === stageId);
-
-    if (targetIdx > currentIdx) {
-      // TODO: Replace with real checklist validation from DB
-      const pending = mockPendingItems.filter(i => i.is_required);
-      if (pending.length > 0) {
-        setValidationModal({
-          open: true,
-          targetStageId: stageId,
-          targetStageName: targetStage.name,
-          pendingItems: pending,
-        });
-        return;
-      }
+    try {
+      await moveDeal.mutateAsync({ dealId: deal.id, fromStageId, toStageId: stageId });
+      toast({ title: 'Etapa atualizada' });
+    } catch {
+      toast({ title: 'Erro ao mover etapa', variant: 'destructive' });
     }
+  }, [deal, moveDeal]);
 
-    setDeal((prev) => ({ ...prev, stage_id: stageId }));
-  }, [deal.stage_id]);
+  const handleCreateDeal = async (input: Parameters<typeof createDeal.mutateAsync>[0]) => {
+    const result = await createDeal.mutateAsync(input);
+    navigate(`/negocios/${result.id}`);
+    return result;
+  };
 
-  const handleForceAdvance = () => {
-    setDeal((prev) => ({ ...prev, stage_id: validationModal.targetStageId }));
-    setValidationModal(prev => ({ ...prev, open: false }));
+  if (isLoading || loadingStages) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !deal) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <p className="text-lg font-medium">Negócio não encontrado</p>
+          <p className="text-sm text-muted-foreground">O negócio solicitado não existe ou foi removido.</p>
+          <Button variant="outline" onClick={() => navigate('/negocios')}>
+            ← Voltar para Negócios
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Build a Deal-like object for components that expect the old type
+  const dealForComponents = {
+    ...deal,
+    stage_id: deal.stage_id ?? '',
+    value: deal.value ?? 0,
+    tags: deal.tags ?? [],
+    custom_fields: deal.custom_fields ?? {},
   };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-background">
-      {/* Header */}
       <DealViewHeader
-        deal={deal}
-        stage={currentStage}
-        pipelineName="Vendas - Energia Solar"
+        deal={dealForComponents as any}
+        stage={currentStage as any}
+        pipelineName={deal.pipeline?.name ?? ''}
         onBack={() => navigate('/negocios')}
       />
 
-      {/* Stepper */}
       <DealStageStepper
-        stages={mockStages}
-        currentStageId={deal.stage_id}
+        stages={stages as any[]}
+        currentStageId={deal.stage_id ?? ''}
         onStageClick={handleStageChange}
       />
 
-      {/* Main grid */}
       <div className="flex-1 overflow-auto">
         <div className="grid grid-cols-12 gap-6 p-6 max-w-[1600px] mx-auto">
-          {/* Left column - Checklists */}
           <div className="col-span-12 lg:col-span-4">
-            <DealChecklistPanel stage={currentStage} />
+            <DealChecklistPanel stage={currentStage as any} />
           </div>
-
-          {/* Right column - Timeline & Tabs */}
           <div className="col-span-12 lg:col-span-8">
-            <DealTimelinePanel deal={deal} />
+            <DealTimelinePanel
+              deal={dealForComponents as any}
+              dealId={deal.id}
+              contactId={deal.contact_id ?? undefined}
+              onNewDeal={() => setNewDealOpen(true)}
+            />
           </div>
         </div>
       </div>
 
-      {/* Validation Modal */}
       <StageValidationModal
         open={validationModal.open}
         onClose={() => setValidationModal(prev => ({ ...prev, open: false }))}
-        onConfirm={handleForceAdvance}
+        onConfirm={() => setValidationModal(prev => ({ ...prev, open: false }))}
         pendingItems={validationModal.pendingItems}
         targetStageName={validationModal.targetStageName}
+      />
+
+      <NewDealDialog
+        open={newDealOpen}
+        onClose={() => setNewDealOpen(false)}
+        stages={stages}
+        pipelineId={deal.pipeline_id}
+        onCreateDeal={handleCreateDeal}
       />
     </div>
   );

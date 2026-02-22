@@ -26,6 +26,10 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate }: DealCardPro
     (Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24)
   ));
 
+  const daysInPipeline = Math.max(0, Math.floor(
+    (Date.now() - new Date(deal.entered_pipeline_at).getTime()) / (1000 * 60 * 60 * 24)
+  ));
+
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('text/plain', deal.id);
     e.dataTransfer.setData('application/stage-id', deal.stage_id ?? '');
@@ -127,10 +131,15 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate }: DealCardPro
           </Avatar>
           {renderTaskIcon()}
         </div>
-        <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[10px] font-medium px-1.5 py-0.5">
-          <Timer className="h-2.5 w-2.5" />
-          {daysInStage}d
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-medium px-1.5 py-0.5" title="Dias no funil">
+            {daysInPipeline}d
+          </span>
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[10px] font-medium px-1.5 py-0.5" title="Dias na etapa">
+            <Timer className="h-2.5 w-2.5" />
+            {daysInStage}d
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import AuthPage from "@/pages/AuthPage";
 import DashboardPage from "@/pages/DashboardPage";
 import DealsPage from "@/pages/DealsPage";
 import DocumentsPage from "@/pages/DocumentsPage";
+import TasksPage from "@/pages/TasksPage";
 import ProductsPage from "@/pages/ProductsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -63,7 +64,7 @@ const App = () => (
               <Route path="/clientes" element={<Navigate to="/cadastro/pessoas" replace />} />
               <Route path="/negocios" element={<DealsPage />} />
               <Route path="/negocios/:id" element={<DealViewPage />} />
-              
+              <Route path="/tarefas" element={<TasksPage />} />
               <Route path="/documentos" element={<DocumentsPage />} />
               <Route path="/produtos" element={<ProductsPage />} />
               <Route path="/relatorios" element={<ReportsPage />} />

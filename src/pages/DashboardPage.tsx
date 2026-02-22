@@ -1,40 +1,93 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, FileText, DollarSign, Clock, CheckCircle, MessageSquare, Eye } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { TrendingUp, FileText, DollarSign, Clock, MessageSquare, Eye, Send, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePosts } from '@/hooks/usePosts';
+import { useTasks } from '@/hooks/useTasks';
+import { useDeals } from '@/hooks/useDeals';
+import { usePipelines, useStages } from '@/hooks/usePipelines';
+import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export default function DashboardPage() {
-  const { profile } = useAuthContext();
+  const navigate = useNavigate();
+  const { profile, user } = useAuthContext();
+  const [newPost, setNewPost] = useState('');
 
-  const stats = [
-    { label: 'Negócios criados', value: '47', period: 'Este mês', icon: TrendingUp },
-    { label: 'Propostas geradas', value: '12', period: 'Este mês', icon: FileText },
-    { label: 'Vendas realizadas', value: '8', period: 'Este mês', icon: DollarSign },
-  ];
+  // Real data hooks
+  const { posts, isLoading: loadingPosts, createPost } = usePosts();
+  const { tasks, isLoading: loadingTasks, completeTask } = useTasks('today');
+  const { pipelines } = usePipelines();
+  const firstPipelineId = pipelines[0]?.id;
+  const { stages } = useStages(firstPipelineId);
+  const { deals } = useDeals(firstPipelineId);
 
-  const tasks = [
-    { title: 'Acompanhar assinatura Maria Rita', date: 'Segunda-feira, 24 de Fev de 2026 às 13:00', overdue: true },
-    { title: 'Enviar proposta para João Silva', date: 'Terça-feira, 25 de Fev de 2026 às 18:00', overdue: false },
-    { title: 'Follow-up com empresa ABC Solar', date: 'Quarta-feira, 26 de Fev de 2026 às 08:00', overdue: false },
-  ];
+  // Audit log
+  const companyId = profile?.company_id;
+  const auditQuery = useQuery({
+    queryKey: ['audit_log', companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('audit_log')
+        .select('*')
+        .eq('company_id', companyId!)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (error) throw error;
 
-  const activities = [
-    { text: 'Negócio Projeto Solar 10kW criado.', time: 'Hoje às 19:17', contact: 'Maria Rita', type: 'deal' },
-    { text: 'Pessoa Tamo Carlos criada.', time: 'Hoje às 19:17', contact: 'Tamo Carlos', type: 'contact' },
-    { text: 'Negócio Eder Oliveira criado.', time: 'Hoje às 19:11', contact: 'Eder Oliveira', type: 'deal' },
-    { text: 'Negócio Paulo Sérgio criado.', time: 'Hoje às 18:35', contact: 'Paulo Sérgio', type: 'deal' },
-  ];
+      // Fetch user names
+      const userIds = [...new Set((data ?? []).map(d => d.user_id).filter(Boolean))];
+      let userMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds as string[]);
+        for (const p of profiles ?? []) {
+          userMap[p.id] = p.full_name;
+        }
+      }
 
-  const pipelineStages = [
-    { name: '💎 Abordagem/Qualificação', count: 15, value: 'R$ 450.000,00' },
-    { name: '📋 Apresentação Proposta', count: 8, value: 'R$ 280.000,00' },
-    { name: '📄 Negociação/Fechamento', count: 5, value: 'R$ 175.000,00' },
-    { name: '⚙️ Trâmites Negociais', count: 3, value: 'R$ 95.000,00' },
-    { name: '✅ Assinatura de Contrato', count: 2, value: 'R$ 65.000,00' },
-  ];
+      return (data ?? []).map(d => ({
+        ...d,
+        user_name: d.user_id ? userMap[d.user_id] ?? 'Sistema' : 'Sistema',
+      }));
+    },
+  });
+
+  const activities = auditQuery.data ?? [];
+
+  const handleCreatePost = async () => {
+    if (!newPost.trim()) return;
+    try {
+      await createPost.mutateAsync(newPost.trim());
+      setNewPost('');
+      toast({ title: 'Publicação criada' });
+    } catch {
+      toast({ title: 'Erro ao publicar', variant: 'destructive' });
+    }
+  };
+
+  const handleCompleteTask = async (taskId: string) => {
+    try {
+      await completeTask.mutateAsync(taskId);
+      toast({ title: 'Tarefa concluída' });
+    } catch {
+      toast({ title: 'Erro', variant: 'destructive' });
+    }
+  };
 
   const userInitials = profile?.full_name
     ?.split(' ')
@@ -42,6 +95,19 @@ export default function DashboardPage() {
     .slice(0, 2)
     .join('')
     .toUpperCase() ?? 'U';
+
+  // Pipeline summary
+  const stageStats = stages.map(s => {
+    const stageDeals = deals.filter(d => d.stage_id === s.id);
+    return {
+      name: `${s.icon ?? ''} ${s.name}`,
+      count: stageDeals.length,
+      value: stageDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
+    };
+  });
+
+  const totalDeals = deals.length;
+  const totalValue = deals.reduce((sum, d) => sum + (d.value ?? 0), 0);
 
   return (
     <>
@@ -51,20 +117,38 @@ export default function DashboardPage() {
 
         {/* Stats row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {stats.map((stat) => (
-            <Card key={stat.label}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-muted-foreground">{stat.label}</span>
-                  <Badge variant="secondary" className="text-xs">{stat.period}</Badge>
-                </div>
-                <p className="text-3xl font-bold">{stat.value}</p>
-              </CardContent>
-            </Card>
-          ))}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Negócios ativos</span>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-3xl font-bold">{totalDeals}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Tarefas hoje</span>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-3xl font-bold">{tasks.length}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Valor total no funil</span>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-3xl font-bold">
+                {totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* 3-block layout: Publicações + Tarefas do dia + Atividades */}
+        {/* 3-block layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Publicações */}
           <Card>
@@ -72,60 +156,95 @@ export default function DashboardPage() {
               <CardTitle className="text-base">Publicações</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-                <CheckCircle className="h-4 w-4 text-primary" />
-                <span className="text-sm text-muted-foreground">Nova publicação...</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <Avatar className="h-8 w-8 mt-0.5">
-                  <AvatarFallback className="text-xs bg-primary/10 text-primary font-medium">{userInitials}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{profile?.full_name}</p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> Quarta-feira, 18 de Dezembro de 2024 às 21:02
-                  </p>
-                  <p className="text-sm mt-2 text-muted-foreground">
-                    Ola, equipe Boxsol. Foi criada pasta na nuvem com todas as normas e procedimentos.
-                  </p>
-                  <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                    <MessageSquare className="h-3 w-3" /> 0
-                  </div>
+              <div className="space-y-2">
+                <Textarea
+                  value={newPost}
+                  onChange={(e) => setNewPost(e.target.value)}
+                  placeholder="Nova publicação..."
+                  rows={2}
+                  className="text-sm resize-none"
+                />
+                <div className="flex justify-end">
+                  <Button size="sm" className="gap-1 h-7 text-xs" onClick={handleCreatePost} disabled={!newPost.trim() || createPost.isPending}>
+                    <Send className="h-3 w-3" />
+                    {createPost.isPending ? '...' : 'Publicar'}
+                  </Button>
                 </div>
               </div>
+
+              <ScrollArea className="max-h-[320px]">
+                {loadingPosts ? (
+                  <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                ) : posts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhuma publicação ainda</p>
+                ) : (
+                  <div className="space-y-4">
+                    {posts.map(post => (
+                      <div key={post.id} className="flex items-start gap-3">
+                        <Avatar className="h-8 w-8 mt-0.5">
+                          <AvatarFallback className="text-xs bg-primary/10 text-primary font-medium">
+                            {post.author?.full_name?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() ?? 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{post.author?.full_name ?? 'Usuário'}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {format(new Date(post.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </p>
+                          <p className="text-sm mt-1 text-muted-foreground">{post.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
             </CardContent>
           </Card>
 
           {/* Tarefas do dia */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                Tarefas do dia
-              </CardTitle>
+              <CardTitle className="text-base">Tarefas do dia</CardTitle>
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[320px]">
-                <div className="space-y-4">
-                  {tasks.map((task, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className={`h-5 w-5 rounded-full border-2 mt-0.5 shrink-0 ${task.overdue ? 'border-destructive' : 'border-muted-foreground/30'}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{task.title}</p>
-                        <Badge variant={task.overdue ? 'destructive' : 'secondary'} className="text-[10px] mt-1">
-                          📅 {task.date}
-                        </Badge>
-                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1 cursor-pointer hover:text-foreground">
-                            <Eye className="h-3 w-3" /> Visualizar
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <MessageSquare className="h-3 w-3" /> 0
-                          </span>
+                {loadingTasks ? (
+                  <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                ) : tasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhuma tarefa para hoje 🎉</p>
+                ) : (
+                  <div className="space-y-3">
+                    {tasks.map(task => {
+                      const isOverdue = task.due_date && new Date(task.due_date) < new Date(new Date().toDateString());
+                      return (
+                        <div key={task.id} className="flex items-start gap-3">
+                          <Checkbox
+                            checked={task.status === 'completed'}
+                            onCheckedChange={() => handleCompleteTask(task.id)}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{task.title}</p>
+                            <Badge variant={isOverdue ? 'destructive' : 'secondary'} className="text-[10px] mt-1">
+                              {task.due_date ? format(new Date(task.due_date), "dd/MM 'às' HH:mm", { locale: ptBR }) : ''}
+                            </Badge>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              {task.deal && (
+                                <span
+                                  className="flex items-center gap-1 cursor-pointer hover:text-foreground"
+                                  onClick={() => navigate(`/negocios/${task.deal!.id}`)}
+                                >
+                                  <Eye className="h-3 w-3" /> {task.deal.title}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -140,59 +259,68 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="max-h-[320px]">
-                <div className="space-y-4">
-                  {activities.map((act, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mt-0.5 shrink-0">
-                        <TrendingUp className="h-3 w-3 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">IntegradorOS</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {act.time}
-                        </p>
-                        <p className="text-sm mt-0.5">{act.text}</p>
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <span className="cursor-pointer hover:text-foreground">Visualizar</span>
-                          <span>👤 {act.contact}</span>
+                {auditQuery.isLoading ? (
+                  <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                ) : activities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Nenhuma atividade recente</p>
+                ) : (
+                  <div className="space-y-4">
+                    {activities.map((act) => (
+                      <div key={act.id} className="flex items-start gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mt-0.5 shrink-0">
+                          <TrendingUp className="h-3 w-3 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{act.user_name}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {format(new Date(act.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </p>
+                          <p className="text-sm mt-0.5">
+                            {(act as any).summary || `${act.action} ${act.entity_type}`}
+                          </p>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
         </div>
 
         {/* Pipeline summary table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Situação dos Negócios</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 font-medium">Estágio</th>
-                    <th className="text-right py-2 font-medium">Quantidade</th>
-                    <th className="text-right py-2 font-medium">Valor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pipelineStages.map((row, i) => (
-                    <tr key={i} className="border-b last:border-0">
-                      <td className="py-2">{row.name}</td>
-                      <td className="py-2 text-right">{row.count} negócios</td>
-                      <td className="py-2 text-right font-medium">{row.value}</td>
+        {stageStats.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Situação dos Negócios</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 font-medium">Estágio</th>
+                      <th className="text-right py-2 font-medium">Quantidade</th>
+                      <th className="text-right py-2 font-medium">Valor</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                  </thead>
+                  <tbody>
+                    {stageStats.map((row, i) => (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="py-2">{row.name}</td>
+                        <td className="py-2 text-right">{row.count} negócio{row.count !== 1 ? 's' : ''}</td>
+                        <td className="py-2 text-right font-medium">
+                          {row.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </>
   );

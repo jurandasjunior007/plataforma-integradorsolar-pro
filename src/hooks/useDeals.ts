@@ -148,9 +148,23 @@ export function useDeals(pipelineId?: string) {
         .select()
         .single();
       if (error) throw error;
+
+      // Audit log
+      await supabase.from('audit_log').insert({
+        company_id: companyId!,
+        user_id: user?.id ?? null,
+        entity_type: 'deal',
+        entity_id: data.id,
+        action: 'create',
+        summary: `Criou negócio "${input.title}"`,
+      } as any);
+
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deals'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      qc.invalidateQueries({ queryKey: ['audit_log'] });
+    },
   });
 
   const updateDeal = useMutation({
@@ -168,7 +182,6 @@ export function useDeals(pipelineId?: string) {
   const moveDeal = useMutation({
     mutationFn: async (input: { dealId: string; fromStageId: string; toStageId: string }) => {
       const now = new Date().toISOString();
-      // Update deal
       const { error: e1 } = await supabase
         .from('deals')
         .update({
@@ -179,7 +192,6 @@ export function useDeals(pipelineId?: string) {
         .eq('id', input.dealId);
       if (e1) throw e1;
 
-      // Insert history
       const { error: e2 } = await supabase
         .from('deal_stage_history')
         .insert({
@@ -190,8 +202,22 @@ export function useDeals(pipelineId?: string) {
           changed_at: now,
         } as any);
       if (e2) throw e2;
+
+      // Audit log
+      await supabase.from('audit_log').insert({
+        company_id: companyId!,
+        user_id: user?.id ?? null,
+        entity_type: 'deal',
+        entity_id: input.dealId,
+        action: 'stage_change',
+        summary: 'Moveu negócio de etapa',
+      } as any);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deals'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      qc.invalidateQueries({ queryKey: ['deal-detail'] });
+      qc.invalidateQueries({ queryKey: ['audit_log'] });
+    },
   });
 
   const deleteDeal = useMutation({
