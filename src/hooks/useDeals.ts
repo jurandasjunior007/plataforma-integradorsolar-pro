@@ -212,11 +212,55 @@ export function useDeals(pipelineId?: string) {
         action: 'stage_change',
         summary: 'Moveu negócio de etapa',
       } as any);
+
+      // Block 7: Auto-create tasks from automations configured for the target stage
+      try {
+        const { data: automations } = await supabase
+          .from('automations')
+          .select('*')
+          .eq('stage_id', input.toStageId)
+          .eq('company_id', companyId!)
+          .eq('is_active', true)
+          .eq('trigger_event', 'stage_enter')
+          .eq('action_type', 'create_task');
+
+        if (automations?.length) {
+          // Get deal to find owner
+          const { data: dealData } = await supabase
+            .from('deals')
+            .select('owner_id, title')
+            .eq('id', input.dealId)
+            .single();
+
+          for (const auto of automations) {
+            const config = (auto.action_config as Record<string, any>) ?? {};
+            const daysOffset = config.due_days ?? 3;
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + daysOffset);
+
+            await supabase.from('tasks').insert({
+              title: config.task_title ?? auto.name,
+              description: config.task_description ?? null,
+              due_date: dueDate.toISOString(),
+              assigned_to: config.assigned_to ?? dealData?.owner_id ?? user?.id ?? null,
+              deal_id: input.dealId,
+              company_id: companyId!,
+              created_by: user?.id ?? null,
+              status: 'pending',
+              priority: config.priority ?? 'normal',
+            } as any);
+          }
+        }
+      } catch {
+        // Non-critical: auto-task creation failed silently
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deals'] });
       qc.invalidateQueries({ queryKey: ['deal-detail'] });
       qc.invalidateQueries({ queryKey: ['audit_log'] });
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['deal-task-status'] });
     },
   });
 

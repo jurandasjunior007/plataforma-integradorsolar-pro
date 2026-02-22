@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import ClientsRedirect from "@/pages/ClientsRedirect";
 import { AuthProvider, useAuthContext } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import AuthPage from "@/pages/AuthPage";
@@ -73,7 +74,7 @@ const App = () => (
               <Route path="/cadastro/enderecos" element={<EnderecosPage />} />
               <Route path="/cadastro/importacao" element={<ImportacaoPage />} />
               <Route path="/cadastro/duplicidades" element={<DuplicidadesPage />} />
-              <Route path="/clientes" element={<Navigate to="/cadastro/pessoas" replace />} />
+              <Route path="/clientes" element={<ClientsRedirect />} />
               <Route path="/negocios" element={<DealsPage />} />
               <Route path="/negocios/:id" element={<DealViewPage />} />
               <Route path="/tarefas" element={<TasksPage />} />
