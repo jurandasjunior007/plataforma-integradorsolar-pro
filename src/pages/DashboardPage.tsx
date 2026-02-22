@@ -65,9 +65,9 @@ export default function DashboardPage() {
         </div>
 
         {/* 3-block layout: Publicações + Tarefas do dia + Atividades */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Publicações */}
-          <Card className="lg:col-span-4">
+          <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Publicações</CardTitle>
             </CardHeader>
@@ -97,7 +97,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Tarefas do dia */}
-          <Card className="lg:col-span-4">
+          <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 Tarefas do dia
@@ -131,7 +131,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Atividades */}
-          <Card className="lg:col-span-4">
+          <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Atividades</CardTitle>
