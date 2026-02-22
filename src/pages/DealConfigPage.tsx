@@ -3,10 +3,11 @@ import { TopBar } from '@/components/layout/TopBar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePipelines, useStages } from '@/hooks/usePipelines';
-import { CheckSquare, Workflow, Layers } from 'lucide-react';
+import { CheckSquare, Workflow, Layers, ListTodo } from 'lucide-react';
 import { StageListSidebar } from '@/components/admin/StageListSidebar';
 import { ChecklistConfigTab } from '@/components/admin/ChecklistConfigTab';
 import { AutomationConfigTab } from '@/components/admin/AutomationConfigTab';
+import { AutoTaskConfigTab } from '@/components/admin/AutoTaskConfigTab';
 
 export default function DealConfigPage() {
   const { pipelines, isLoading: loadingPipelines } = usePipelines();
@@ -81,6 +82,10 @@ export default function DealConfigPage() {
                       <CheckSquare className="h-3.5 w-3.5" />
                       Checklists
                     </TabsTrigger>
+                    <TabsTrigger value="auto-tasks" className="gap-1.5">
+                      <ListTodo className="h-3.5 w-3.5" />
+                      Tarefas Automáticas
+                    </TabsTrigger>
                     <TabsTrigger value="automations" className="gap-1.5">
                       <Workflow className="h-3.5 w-3.5" />
                       Automações
@@ -92,6 +97,13 @@ export default function DealConfigPage() {
                       stageId={selectedStageId}
                       pipelineId={selectedPipelineId}
                       stages={stages}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="auto-tasks" className="mt-4">
+                    <AutoTaskConfigTab
+                      stageId={selectedStageId}
+                      pipelineId={selectedPipelineId}
                     />
                   </TabsContent>
 
