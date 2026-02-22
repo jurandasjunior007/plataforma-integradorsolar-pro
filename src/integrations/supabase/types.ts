@@ -14,9 +14,82 @@ export type Database = {
   }
   public: {
     Tables: {
+      addresses: {
+        Row: {
+          cep: string | null
+          city: string | null
+          company_id: string
+          complement: string | null
+          created_at: string
+          deleted_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          is_primary: boolean
+          label: string
+          latitude: number | null
+          longitude: number | null
+          neighborhood: string | null
+          number: string | null
+          state: string | null
+          street: string | null
+          updated_at: string
+        }
+        Insert: {
+          cep?: string | null
+          city?: string | null
+          company_id: string
+          complement?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          is_primary?: boolean
+          label?: string
+          latitude?: number | null
+          longitude?: number | null
+          neighborhood?: string | null
+          number?: string | null
+          state?: string | null
+          street?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cep?: string | null
+          city?: string | null
+          company_id?: string
+          complement?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          is_primary?: boolean
+          label?: string
+          latitude?: number | null
+          longitude?: number | null
+          neighborhood?: string | null
+          number?: string | null
+          state?: string | null
+          street?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addresses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
+          after_json: Json | null
+          before_json: Json | null
           company_id: string
           created_at: string
           details: Json | null
@@ -27,6 +100,8 @@ export type Database = {
         }
         Insert: {
           action: string
+          after_json?: Json | null
+          before_json?: Json | null
           company_id: string
           created_at?: string
           details?: Json | null
@@ -37,6 +112,8 @@ export type Database = {
         }
         Update: {
           action?: string
+          after_json?: Json | null
+          before_json?: Json | null
           company_id?: string
           created_at?: string
           details?: Json | null
@@ -161,54 +238,125 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_channels: {
+        Row: {
+          channel_type: string
+          company_id: string
+          created_at: string
+          deleted_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          is_primary: boolean
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          channel_type: string
+          company_id: string
+          created_at?: string
+          deleted_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          is_primary?: boolean
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          channel_type?: string
+          company_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          is_primary?: boolean
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           address: string | null
+          birth_date: string | null
           city: string | null
           company_id: string
           cpf: string | null
           created_at: string
           created_by: string | null
-          email: string | null
+          deleted_at: string | null
+          email_principal: string | null
+          full_name: string | null
           id: string
           name: string
           notes: string | null
-          phone: string | null
+          owner_user_id: string | null
+          phone_principal: string | null
+          rg: string | null
           state: string | null
+          status_cadastro: string
+          tags: string[]
+          type: string
           updated_at: string
-          whatsapp: string | null
+          whatsapp_principal: string | null
         }
         Insert: {
           address?: string | null
+          birth_date?: string | null
           city?: string | null
           company_id: string
           cpf?: string | null
           created_at?: string
           created_by?: string | null
-          email?: string | null
+          deleted_at?: string | null
+          email_principal?: string | null
+          full_name?: string | null
           id?: string
           name: string
           notes?: string | null
-          phone?: string | null
+          owner_user_id?: string | null
+          phone_principal?: string | null
+          rg?: string | null
           state?: string | null
+          status_cadastro?: string
+          tags?: string[]
+          type?: string
           updated_at?: string
-          whatsapp?: string | null
+          whatsapp_principal?: string | null
         }
         Update: {
           address?: string | null
+          birth_date?: string | null
           city?: string | null
           company_id?: string
           cpf?: string | null
           created_at?: string
           created_by?: string | null
-          email?: string | null
+          deleted_at?: string | null
+          email_principal?: string | null
+          full_name?: string | null
           id?: string
           name?: string
           notes?: string | null
-          phone?: string | null
+          owner_user_id?: string | null
+          phone_principal?: string | null
+          rg?: string | null
           state?: string | null
+          status_cadastro?: string
+          tags?: string[]
+          type?: string
           updated_at?: string
-          whatsapp?: string | null
+          whatsapp_principal?: string | null
         }
         Relationships: [
           {
@@ -216,6 +364,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -768,13 +923,21 @@ export type Database = {
           company_id: string
           created_at: string
           created_by: string | null
-          email: string | null
+          deleted_at: string | null
+          email_principal: string | null
           id: string
+          legal_name: string | null
           name: string
           notes: string | null
-          phone: string | null
+          owner_user_id: string | null
+          phone_principal: string | null
+          segment: string | null
           state: string | null
+          state_registration_ie: string | null
+          status_cadastro: string
+          trade_name: string | null
           updated_at: string
+          whatsapp_principal: string | null
         }
         Insert: {
           address?: string | null
@@ -783,13 +946,21 @@ export type Database = {
           company_id: string
           created_at?: string
           created_by?: string | null
-          email?: string | null
+          deleted_at?: string | null
+          email_principal?: string | null
           id?: string
+          legal_name?: string | null
           name: string
           notes?: string | null
-          phone?: string | null
+          owner_user_id?: string | null
+          phone_principal?: string | null
+          segment?: string | null
           state?: string | null
+          state_registration_ie?: string | null
+          status_cadastro?: string
+          trade_name?: string | null
           updated_at?: string
+          whatsapp_principal?: string | null
         }
         Update: {
           address?: string | null
@@ -798,13 +969,21 @@ export type Database = {
           company_id?: string
           created_at?: string
           created_by?: string | null
-          email?: string | null
+          deleted_at?: string | null
+          email_principal?: string | null
           id?: string
+          legal_name?: string | null
           name?: string
           notes?: string | null
-          phone?: string | null
+          owner_user_id?: string | null
+          phone_principal?: string | null
+          segment?: string | null
           state?: string | null
+          state_registration_ie?: string | null
+          status_cadastro?: string
+          trade_name?: string | null
           updated_at?: string
+          whatsapp_principal?: string | null
         }
         Relationships: [
           {
@@ -812,6 +991,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1173,6 +1359,10 @@ export type Database = {
     }
     Functions: {
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
