@@ -1,13 +1,8 @@
 import type { DealRow, DealTaskStatus } from '@/hooks/useDeals';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  MoreHorizontal, Copy, Trash2, Pencil, Clock, Timer,
-  CheckCircle2, AlertTriangle, AlertCircle, Circle,
+  Copy, Pencil, CheckCircle2, AlertTriangle, AlertCircle, Circle, Timer,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -19,7 +14,7 @@ interface DealCardProps {
   onDelete?: () => void;
 }
 
-export function DealCard({ deal, taskStatus, onClick, onDuplicate, onDelete }: DealCardProps) {
+export function DealCard({ deal, taskStatus, onClick, onDuplicate }: DealCardProps) {
   const ownerInitials = deal.owner?.full_name
     ?.split(' ')
     .map((n) => n[0])
@@ -30,9 +25,6 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate, onDelete }: D
   const daysInStage = Math.max(0, Math.floor(
     (Date.now() - new Date(deal.entered_stage_at).getTime()) / (1000 * 60 * 60 * 24)
   ));
-  const daysInPipeline = Math.max(0, Math.floor(
-    (Date.now() - new Date(deal.entered_pipeline_at).getTime()) / (1000 * 60 * 60 * 24)
-  ));
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('text/plain', deal.id);
@@ -40,13 +32,12 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate, onDelete }: D
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  // Task status icon
   const renderTaskIcon = () => {
     if (!taskStatus || !taskStatus.has_any_task_open) {
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Circle className="h-3.5 w-3.5 text-muted-foreground/40" />
+            <Circle className="h-3 w-3 text-muted-foreground/40" />
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">Sem tarefa aberta</TooltipContent>
         </Tooltip>
@@ -56,7 +47,7 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate, onDelete }: D
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+            <AlertCircle className="h-3 w-3 text-destructive" />
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">Tarefa vencida!</TooltipContent>
         </Tooltip>
@@ -66,7 +57,7 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate, onDelete }: D
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+            <AlertTriangle className="h-3 w-3 text-amber-500" />
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">Tarefa vence hoje</TooltipContent>
         </Tooltip>
@@ -75,7 +66,7 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate, onDelete }: D
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+          <CheckCircle2 className="h-3 w-3 text-primary" />
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">Tarefa futura agendada</TooltipContent>
       </Tooltip>
@@ -91,49 +82,42 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate, onDelete }: D
       onClick={onClick}
       className="bg-card hover:bg-accent/30 border rounded-lg p-3 cursor-pointer transition-all hover:shadow-sm group"
     >
-      <div className="flex items-start justify-between mb-1">
-        <h4 className="font-medium text-sm leading-tight truncate flex-1 mr-2">{deal.title}</h4>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+      {/* Row 1: Title + action icons */}
+      <div className="flex items-start justify-between mb-0.5">
+        <h4 className="font-semibold text-sm leading-tight truncate flex-1 mr-2">{deal.title}</h4>
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {onDuplicate && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-              onClick={(e) => e.stopPropagation()}
+              className="h-5 w-5"
+              onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
             >
-              <MoreHorizontal className="h-3 w-3" />
+              <Copy className="h-3 w-3" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenuItem onClick={() => onClick()}>
-              <Pencil className="h-3 w-3 mr-2" />Editar
-            </DropdownMenuItem>
-            {onDuplicate && (
-              <DropdownMenuItem onClick={onDuplicate}>
-                <Copy className="h-3 w-3 mr-2" />Duplicar
-              </DropdownMenuItem>
-            )}
-            {onDelete && (
-              <DropdownMenuItem onClick={onDelete} className="text-destructive">
-                <Trash2 className="h-3 w-3 mr-2" />Excluir
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
 
-      {displayName && (
-        <p className="text-xs text-muted-foreground truncate mb-2">{displayName}</p>
-      )}
-
-      {(deal.value ?? 0) > 0 && (
-        <div className="mb-2">
-          <span className="text-sm font-semibold">
+      {/* Row 2: Client name + value */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-muted-foreground truncate flex-1 mr-2">{displayName || '\u00A0'}</span>
+        {(deal.value ?? 0) > 0 && (
+          <span className="text-xs font-semibold whitespace-nowrap">
             {(deal.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
-        </div>
-      )}
+        )}
+      </div>
 
+      {/* Row 3: Avatar + task icon + days badge */}
       <div className="flex items-center justify-between pt-2 border-t">
         <div className="flex items-center gap-1.5">
           <Avatar className="h-5 w-5">
@@ -143,16 +127,10 @@ export function DealCard({ deal, taskStatus, onClick, onDuplicate, onDelete }: D
           </Avatar>
           {renderTaskIcon()}
         </div>
-        <div className="flex items-center gap-1.5">
-          <Badge variant="secondary" className="text-[10px] px-1.5 h-5 gap-0.5">
-            <Timer className="h-2.5 w-2.5" />
-            {daysInStage}d
-          </Badge>
-          <Badge variant="outline" className="text-[10px] px-1.5 h-5 gap-0.5">
-            <Clock className="h-2.5 w-2.5" />
-            {daysInPipeline}d
-          </Badge>
-        </div>
+        <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 text-[10px] font-medium px-1.5 py-0.5">
+          <Timer className="h-2.5 w-2.5" />
+          {daysInStage}d
+        </span>
       </div>
     </div>
   );

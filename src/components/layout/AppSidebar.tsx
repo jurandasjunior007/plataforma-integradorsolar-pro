@@ -14,7 +14,7 @@ import {
   MapPin,
   Upload,
   Copy,
-  ListTodo,
+  
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -46,7 +46,6 @@ const cadastroItems = [
 const navItems = [
   { title: 'Resumo', url: '/', icon: LayoutDashboard },
   { title: 'Negócios', url: '/negocios', icon: Kanban },
-  { title: 'Tarefas', url: '/tarefas', icon: ListTodo },
   { title: 'Documentos', url: '/documentos', icon: FileText },
   { title: 'Produtos', url: '/produtos', icon: Package },
   { title: 'Relatórios', url: '/relatorios', icon: BarChart3 },
