@@ -52,15 +52,31 @@ export function useDeals(pipelineId?: string) {
         .select(`
           *,
           contact:contacts!deals_contact_id_fkey(id, name),
-          organization:organizations!deals_organization_id_fkey(id, name),
-          owner:profiles!deals_owner_id_fkey(id, full_name, avatar_url)
+          organization:organizations!deals_organization_id_fkey(id, name)
         `)
         .eq('pipeline_id', pipelineId!)
         .eq('company_id', companyId!)
         .is('deleted_at', null)
         .order('position');
       if (error) throw error;
-      return (data ?? []) as unknown as DealRow[];
+
+      // Fetch owner profiles separately to avoid FK hint issues
+      const ownerIds = [...new Set((data ?? []).map(d => d.owner_id).filter(Boolean))];
+      let ownerMap: Record<string, { id: string; full_name: string; avatar_url: string | null }> = {};
+      if (ownerIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .in('id', ownerIds as string[]);
+        for (const p of profiles ?? []) {
+          ownerMap[p.id] = p;
+        }
+      }
+
+      return (data ?? []).map(d => ({
+        ...d,
+        owner: d.owner_id ? ownerMap[d.owner_id] ?? null : null,
+      })) as unknown as DealRow[];
     },
   });
 
