@@ -1,7 +1,7 @@
 import type { Stage } from '@/types/crm';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, AlertTriangle, Circle, Settings, Loader2, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Circle, Settings, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStageChecklists } from '@/hooks/useStageChecklists';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -51,7 +51,6 @@ function evaluateItem(
   deal: DealChecklistPanelProps['deal'],
   manuallyCompleted: boolean,
 ): ItemStatus {
-  // If item has a linked_field, evaluate automatically
   if (item.linked_field) {
     const value = getFieldValue(deal, item.linked_field);
     const isFilled = value !== null && value !== undefined && value !== '' && value !== 0;
@@ -60,21 +59,57 @@ function evaluateItem(
     if (item.is_required) return 'warning';
     return 'optional';
   }
-
-  // No linked_field — use manual checkbox status
   if (manuallyCompleted) return 'completed';
   if (item.block_stage_advance) return 'blocking';
   if (item.is_required) return 'warning';
   return 'optional';
 }
 
+function checklistMatchesRules(
+  checklistId: string,
+  rules: Array<{ checklist_id: string; condition_field: string; condition_operator: string; condition_value: string }>,
+  deal: DealChecklistPanelProps['deal']
+): boolean {
+  const clRules = rules.filter(r => r.checklist_id === checklistId);
+  if (clRules.length === 0) return true;
+
+  return clRules.every(rule => {
+    const getValue = (path: string): any => {
+      if (path.startsWith('custom_fields.')) {
+        return deal.custom_fields?.[path.replace('custom_fields.', '')];
+      }
+      const map: Record<string, any> = {
+        'contact_id': deal.contact_id,
+        'organization_id': deal.organization_id,
+        'value': deal.value,
+        'status': deal.status,
+        'owner_id': deal.owner_id,
+      };
+      return map[path] ?? null;
+    };
+
+    const value = String(getValue(rule.condition_field) ?? '').toLowerCase();
+    const target = rule.condition_value.toLowerCase();
+
+    switch (rule.condition_operator) {
+      case 'equals':       return value === target;
+      case 'not_equals':   return value !== target;
+      case 'contains':     return value.includes(target);
+      case 'not_empty':    return value !== '' && value !== 'null' && value !== 'undefined';
+      case 'is_empty':     return value === '' || value === 'null' || value === 'undefined';
+      case 'greater_than': return Number(value) > Number(target);
+      case 'less_than':    return Number(value) < Number(target);
+      default:             return true;
+    }
+  });
+}
+
 export function DealChecklistPanel({ stage, dealId, deal }: DealChecklistPanelProps) {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const qc = useQueryClient();
-  const { checklists, items, isLoading } = useStageChecklists(stage.id);
+  const { checklists, items, rules, isLoading } = useStageChecklists(stage.id);
 
-  // Fetch manually completed items for this deal
   const { data: dealCheckItems } = useQuery({
     queryKey: ['deal-checklist-items', dealId, stage.id],
     enabled: !!dealId,
@@ -128,10 +163,15 @@ export function DealChecklistPanel({ stage, dealId, deal }: DealChecklistPanelPr
     },
   });
 
-  // Build evaluated items for all active checklists
-  const activeChecklists = checklists.filter(cl => cl.is_active);
+  // Filter by active + conditional rules
+  const visibleChecklists = checklists
+    .filter(cl => cl.is_active)
+    .filter(cl => checklistMatchesRules(cl.id, rules, deal));
+
+  const visibleChecklistIds = new Set(visibleChecklists.map(cl => cl.id));
+
   const allEvaluatedItems = items
-    .filter(it => activeChecklists.some(cl => cl.id === it.checklist_id))
+    .filter(it => visibleChecklistIds.has(it.checklist_id))
     .map(it => ({
       ...it,
       status: evaluateItem(it, deal, manualCompletedIds.has(it.id)),
@@ -190,7 +230,7 @@ export function DealChecklistPanel({ stage, dealId, deal }: DealChecklistPanelPr
         </Card>
       )}
 
-      {activeChecklists.length === 0 ? (
+      {visibleChecklists.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-sm text-muted-foreground">Nenhum checklist configurado para esta etapa.</p>
@@ -205,7 +245,7 @@ export function DealChecklistPanel({ stage, dealId, deal }: DealChecklistPanelPr
           </CardContent>
         </Card>
       ) : (
-        activeChecklists.map((checklist) => {
+        visibleChecklists.map((checklist) => {
           const clItems = allEvaluatedItems.filter(i => i.checklist_id === checklist.id);
           return (
             <div key={checklist.id} className="space-y-2">
@@ -221,7 +261,6 @@ export function DealChecklistPanel({ stage, dealId, deal }: DealChecklistPanelPr
                   ) : (
                     clItems.map((item) => (
                       <div key={item.id} className="flex items-center gap-3 text-sm">
-                        {/* Only show checkbox for items without linked_field */}
                         {!item.linked_field ? (
                           <Checkbox
                             checked={item.status === 'completed'}
@@ -237,13 +276,13 @@ export function DealChecklistPanel({ stage, dealId, deal }: DealChecklistPanelPr
                         ) : null}
 
                         {item.status === 'completed' ? (
-                          <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                          <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                         ) : item.status === 'blocking' ? (
-                          <ShieldAlert className="h-4 w-4 text-destructive shrink-0" />
+                          <XCircle className="h-4 w-4 text-destructive shrink-0" />
                         ) : item.status === 'warning' ? (
-                          <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+                          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                         ) : (
-                          <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                          <Circle className="h-4 w-4 text-muted-foreground/30 shrink-0" />
                         )}
 
                         <span className={item.status === 'completed' ? 'text-muted-foreground line-through' : ''}>
@@ -254,7 +293,7 @@ export function DealChecklistPanel({ stage, dealId, deal }: DealChecklistPanelPr
                           <span className="ml-auto text-[10px] font-medium text-destructive">Bloqueia</span>
                         )}
                         {item.status === 'warning' && (
-                          <span className="ml-auto text-[10px] font-medium text-warning">Obrigatório</span>
+                          <span className="ml-auto text-[10px] font-medium text-amber-500">Pendente</span>
                         )}
                       </div>
                     ))

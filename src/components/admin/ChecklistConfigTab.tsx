@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Copy, Trash2, Pencil, List, GitBranch } from 'lucide-react';
+import { Plus, Copy, Trash2, Pencil, List, GitBranch, Sun } from 'lucide-react';
 import { useStageChecklists } from '@/hooks/useStageChecklists';
 import { ChecklistEditorDialog } from '@/components/admin/ChecklistEditorDialog';
 import { DuplicateChecklistDialog } from '@/components/admin/DuplicateChecklistDialog';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { SOLAR_CHECKLIST_TEMPLATES } from '@/lib/checklistTemplates';
 
 interface ChecklistConfigTabProps {
   stageId: string;
@@ -20,11 +22,14 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
   const {
     checklists, items, rules, isLoading,
     createChecklist, updateChecklist, deleteChecklist, duplicateChecklist,
+    createItem,
   } = useStageChecklists(stageId);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
 
   const handleCreate = async () => {
     try {
@@ -61,6 +66,34 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
     }
   };
 
+  const handleApplyTemplate = async (templateIndex: number) => {
+    setApplyingTemplate(true);
+    try {
+      const template = SOLAR_CHECKLIST_TEMPLATES[templateIndex];
+      for (const cl of template.checklists) {
+        const created = await createChecklist.mutateAsync({
+          title: cl.title,
+          stage_id: stageId,
+        });
+        for (const item of cl.items) {
+          await createItem.mutateAsync({
+            checklist_id: created.id,
+            title: item.title,
+            is_required: item.is_required,
+            block_stage_advance: item.block_stage_advance,
+            linked_field: item.linked_field,
+          });
+        }
+      }
+      toast({ title: 'Template aplicado com sucesso' });
+      setShowTemplates(false);
+    } catch {
+      toast({ title: 'Erro ao aplicar template', variant: 'destructive' });
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -77,6 +110,10 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Checklists da etapa</h3>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setShowTemplates(true)}>
+            <Sun className="h-3.5 w-3.5" />
+            Template solar
+          </Button>
           <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCreate}>
             <Plus className="h-3.5 w-3.5" />
             Novo Checklist
@@ -161,6 +198,54 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
           onClose={() => setDuplicatingId(null)}
         />
       )}
+
+      {/* Solar templates dialog */}
+      <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2">
+              <Sun className="h-4 w-4" />
+              Templates de Energia Solar
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {SOLAR_CHECKLIST_TEMPLATES.map((tmpl, idx) => (
+              <Card key={idx} className="cursor-pointer hover:border-primary/40 transition-colors">
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium">{tmpl.stageName}</h4>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7"
+                      disabled={applyingTemplate}
+                      onClick={() => handleApplyTemplate(idx)}
+                    >
+                      Aplicar
+                    </Button>
+                  </div>
+                  {tmpl.checklists.map((cl, cidx) => (
+                    <div key={cidx} className="space-y-1">
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase">{cl.title}</p>
+                      <ul className="space-y-0.5">
+                        {cl.items.map((item, iidx) => (
+                          <li key={iidx} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${item.block_stage_advance ? 'bg-destructive' : item.is_required ? 'bg-amber-500' : 'bg-muted-foreground/30'}`} />
+                            {item.title}
+                            {item.linked_field && (
+                              <Badge variant="secondary" className="text-[8px] ml-auto">Auto</Badge>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

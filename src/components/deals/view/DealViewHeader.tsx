@@ -16,9 +16,10 @@ interface DealViewHeaderProps {
   pipelineName: string;
   onBack: () => void;
   onDuplicate?: () => void;
+  checklistProgress?: { completed: number; total: number; hasBlockers: boolean };
 }
 
-export function DealViewHeader({ deal, stage, pipelineName, onBack, onDuplicate }: DealViewHeaderProps) {
+export function DealViewHeader({ deal, stage, pipelineName, onBack, onDuplicate, checklistProgress }: DealViewHeaderProps) {
   const ownerInitials = deal.owner?.full_name
     ?.split(' ')
     .map((n) => n[0])
@@ -51,6 +52,32 @@ export function DealViewHeader({ deal, stage, pipelineName, onBack, onDuplicate 
               {stage.name}
             </Badge>
           </div>
+
+          {/* Checklist progress bar */}
+          {checklistProgress && checklistProgress.total > 0 && (
+            <div className="flex items-center gap-3 mt-1.5">
+              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[200px]">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    checklistProgress.hasBlockers
+                      ? 'bg-destructive'
+                      : checklistProgress.completed === checklistProgress.total
+                      ? 'bg-green-500'
+                      : 'bg-primary'
+                  }`}
+                  style={{
+                    width: `${Math.round((checklistProgress.completed / checklistProgress.total) * 100)}%`
+                  }}
+                />
+              </div>
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                {checklistProgress.completed}/{checklistProgress.total} checklist
+              </span>
+              {checklistProgress.hasBlockers && (
+                <span className="text-[11px] text-destructive font-medium">● Bloqueado</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
