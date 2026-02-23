@@ -1,58 +1,81 @@
 
 
-## Ajustes no Card do Kanban e Remoção do Menu Tarefas
+## Correção Cirúrgica — Checklist com Avaliação Automática por Campo
 
-### Resumo
+### Situação Atual
 
-Duas alterações principais:
-1. **Redesenhar o DealCard** para seguir o layout da imagem de referência (estilo SunHub)
-2. **Remover "Tarefas" do menu lateral** -- o módulo de tarefas permanece apenas como seção dentro do Deal View e Resumo
+- `DealChecklistPanel` ja usa `useStageChecklists` (sem mock data) -- OK
+- `DealViewPage` ja passa `dealId` -- OK
+- `handleStageChange` ja valida checklist antes de mover -- OK, mas usa `deal_checklist_items` (checkboxes manuais)
+
+### O que falta (gap principal)
+
+Os itens de checklist possuem um campo `linked_field` (ex: `contact_id`, `value`, `custom_fields.solar_consumo`) que deveria permitir avaliacao automatica: se o campo do deal esta preenchido, o item e considerado concluido automaticamente. Hoje isso nao funciona — tudo depende de checkbox manual.
+
+### Plano de Alteracoes
+
+Apenas 2 arquivos serao alterados: `DealChecklistPanel.tsx` e `DealViewPage.tsx`.
 
 ---
 
-### 1. Novo Layout do DealCard
+### 1. DealChecklistPanel.tsx
 
-Baseado na imagem de referência, o card terá 3 linhas:
+**1.1** Alterar a interface de props para receber tambem o `deal`:
 
-```text
-+--------------------------------------------+
-| Titulo do Negocio           [copy] [edit]  |
-| Nome do Cliente...    R$ 17.000,04         |
-|------------------------------------------- |
-| [Avatar]  [task icons]           [698d]    |
-+--------------------------------------------+
+```typescript
+interface DealChecklistPanelProps {
+  stage: Stage;
+  dealId: string;
+  deal: {
+    id: string;
+    custom_fields: Record<string, any> | null;
+    value: number | null;
+    contact_id: string | null;
+    organization_id: string | null;
+    owner_id: string | null;
+    status: string;
+    contact?: { id: string; name: string } | null;
+    organization?: { id: string; name: string } | null;
+  };
+}
 ```
 
-**Linha 1**: Titulo (bold, truncado) + icones de acao (copiar, editar) alinhados a direita, visiveis no hover
+**1.2** Adicionar funcao `evaluateItem` que resolve o `linked_field` contra os dados do deal:
+- Se `linked_field` e nulo: usar o status do checkbox manual (tabela `deal_checklist_items`) como fallback
+- Se `linked_field` existe: verificar se o campo correspondente no deal esta preenchido (nao nulo, nao vazio, nao zero)
+- Retornar um status: `completed`, `blocking`, `warning`, ou `optional`
 
-**Linha 2**: Nome do contato/organizacao (truncado, cinza) + valor monetario alinhado a direita
+**1.3** Adicionar barra de progresso no topo mostrando "X/Y itens concluidos (Z%)"
 
-**Linha 3** (separada por borda fina): Avatar do responsavel (esquerda) + icones de status de tarefa (pequenos, coloridos, centro) + badge com dias na etapa (direita, apenas 1 contador como na imagem)
-
-Mudancas em relacao ao card atual:
-- Valor sobe para a segunda linha, ao lado do nome do cliente (em vez de bloco separado)
-- Remove o contador "dias no funil" -- mantém apenas "dias na etapa"
-- Icones de acao mudam de dropdown "..." para icones diretos (copiar, editar) visiveis no hover
-- Badge de dias fica com estilo mais discreto (chip verde como na imagem)
+**1.4** Manter os checkboxes funcionais para itens sem `linked_field` (abordagem hibrida)
 
 ---
 
-### 2. Remover "Tarefas" do Menu Lateral
+### 2. DealViewPage.tsx
 
-**AppSidebar.tsx**: Remover o item "Tarefas" (`/tarefas`) do array `navItems`
+**2.1** Passar o objeto `deal` completo para o `DealChecklistPanel`:
 
-**App.tsx**: Remover a rota `/tarefas` e o import de `TasksPage`
+```tsx
+<DealChecklistPanel
+  stage={currentStage}
+  dealId={deal.id}
+  deal={dealForComponents}
+/>
+```
 
-A pagina `TasksPage.tsx` pode ser mantida no codigo como referencia, mas nao sera acessivel via navegacao. As tarefas continuam acessiveis dentro da tela do negocio (Deal View) e do Resumo (Dashboard).
+**2.2** Atualizar `handleStageChange` para usar a mesma logica de `linked_field` na validacao:
+- Para itens com `linked_field`: verificar se o campo do deal esta preenchido
+- Para itens sem `linked_field`: consultar `deal_checklist_items` para verificar se foram marcados manualmente
+- Combinar ambos os resultados para determinar bloqueadores e avisos
 
 ---
 
-### Detalhes Tecnicos
+### Resumo das mudancas
 
-**Arquivos modificados:**
-- `src/components/kanban/DealCard.tsx` -- redesenho completo do layout
-- `src/components/layout/AppSidebar.tsx` -- remover item "Tarefas"
-- `src/App.tsx` -- remover rota `/tarefas`
+| Arquivo | Alteracao |
+|---|---|
+| `DealChecklistPanel.tsx` | Adicionar prop `deal`, funcao `evaluateItem`, barra de progresso, abordagem hibrida checkbox + linked_field |
+| `DealViewPage.tsx` | Passar `deal` ao componente, atualizar validacao de etapa com logica de linked_field |
 
-**Nenhuma alteracao no banco de dados** -- apenas mudancas visuais e de navegacao.
+Nenhum outro arquivo sera alterado. Nenhuma tabela do banco sera modificada.
 
