@@ -1,8 +1,9 @@
 import type { Stage } from '@/types/crm';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, AlertTriangle, Circle, Settings, XCircle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Circle, Settings, XCircle, HelpCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useStageChecklists } from '@/hooks/useStageChecklists';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -249,9 +250,23 @@ export function DealChecklistPanel({ stage, dealId, deal }: DealChecklistPanelPr
           const clItems = allEvaluatedItems.filter(i => i.checklist_id === checklist.id);
           return (
             <div key={checklist.id} className="space-y-2">
-              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 px-1">
-                {checklist.title}
-              </h4>
+              <div className="flex items-center gap-1.5 px-1">
+                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                  {checklist.title}
+                </h4>
+                {checklist.description && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        {checklist.description}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
               <Card>
                 <CardContent className="py-3 px-4 space-y-2.5">
                   {clItems.length === 0 ? (

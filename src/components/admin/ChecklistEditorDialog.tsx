@@ -11,7 +11,9 @@ import { Plus, Trash2, GripVertical, GitBranch, Link2, AlertCircle } from 'lucid
 import { useStageChecklists } from '@/hooks/useStageChecklists';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-
+import { useProfiles } from '@/hooks/useProfiles';
+import { useContacts } from '@/hooks/useContacts';
+import { useOrganizations } from '@/hooks/useOrganizations';
 const FIELD_OPTIONS = [
   { value: '', label: '— Nenhum (item manual) —' },
   { value: 'value', label: 'Valor do negócio (R$)' },
@@ -70,6 +72,10 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
     createRule, deleteRule,
   } = useStageChecklists(stageId);
 
+  const { data: profiles } = useProfiles();
+  const { contacts } = useContacts();
+  const { organizations } = useOrganizations();
+
   const checklist = checklists.find(c => c.id === checklistId);
   const checklistItems = items.filter(i => i.checklist_id === checklistId);
   const checklistRules = rules.filter(r => r.checklist_id === checklistId);
@@ -85,7 +91,7 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
   const [ruleValue, setRuleValue] = useState('');
 
   const noValueNeeded = ruleOperator === 'not_empty' || ruleOperator === 'is_empty';
-
+  const needsEntitySelect = ['owner_id', 'contact_id', 'organization_id'].includes(ruleField);
   const handleSave = async () => {
     try {
       await updateChecklist.mutateAsync({
@@ -232,13 +238,49 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
                 ))}
               </SelectContent>
             </Select>
-            {!noValueNeeded && (
+            {!noValueNeeded && !needsEntitySelect && (
               <Input
                 value={ruleValue}
                 onChange={(e) => setRuleValue(e.target.value)}
                 placeholder="Valor"
                 className="text-xs h-8 flex-1"
               />
+            )}
+            {!noValueNeeded && needsEntitySelect && ruleField === 'owner_id' && (
+              <Select value={ruleValue} onValueChange={setRuleValue}>
+                <SelectTrigger className="text-xs h-8 flex-1">
+                  <SelectValue placeholder="Selecione o responsável" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(profiles ?? []).map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {!noValueNeeded && needsEntitySelect && ruleField === 'contact_id' && (
+              <Select value={ruleValue} onValueChange={setRuleValue}>
+                <SelectTrigger className="text-xs h-8 flex-1">
+                  <SelectValue placeholder="Selecione o contato" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contacts.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {!noValueNeeded && needsEntitySelect && ruleField === 'organization_id' && (
+              <Select value={ruleValue} onValueChange={setRuleValue}>
+                <SelectTrigger className="text-xs h-8 flex-1">
+                  <SelectValue placeholder="Selecione a empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleAddRule}>
               <Plus className="h-3 w-3" />

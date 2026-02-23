@@ -12,7 +12,7 @@ import { AutoTaskConfigTab } from '@/components/admin/AutoTaskConfigTab';
 export default function DealConfigPage() {
   const { pipelines, isLoading: loadingPipelines } = usePipelines();
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
-  const { stages, isLoading: loadingStages } = useStages(selectedPipelineId || undefined);
+  const { stages, isLoading: loadingStages, createStage, updateStage, deleteStage, reorderStages } = useStages(selectedPipelineId || undefined);
   const [selectedStageId, setSelectedStageId] = useState<string>('');
 
   // Auto-select first pipeline
@@ -66,6 +66,10 @@ export default function DealConfigPage() {
                 selectedStageId={selectedStageId}
                 onSelectStage={setSelectedStageId}
                 isLoading={loadingStages}
+                onCreateStage={(name) => createStage.mutate({ name })}
+                onUpdateStage={(id, name) => updateStage.mutate({ id, name })}
+                onDeleteStage={(id) => deleteStage.mutate(id)}
+                onReorderStages={(ids) => reorderStages.mutate(ids)}
               />
             </div>
 
