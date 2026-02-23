@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { TopBar } from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,9 +9,133 @@ import { Label } from '@/components/ui/label';
 import { Plus, Settings, Users, Workflow, Webhook, Layers, CheckSquare, SlidersHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { ALL_PERMISSIONS, type Permission } from '@/hooks/usePermissions';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/hooks/use-toast';
+import type { AppRole } from '@/types/crm';
+
+const ROLES: AppRole[] = ['admin', 'supervisor', 'vendedor'];
+
+const PERMISSION_LABELS: Record<string, string> = {
+  'deals.create': 'Criar negócios',
+  'deals.edit': 'Editar negócios',
+  'deals.delete': 'Excluir negócios',
+  'deals.view_all': 'Ver todos os negócios',
+  'stages.create': 'Criar etapas',
+  'stages.edit': 'Editar etapas',
+  'stages.delete': 'Excluir etapas',
+  'checklists.create': 'Criar checklists',
+  'checklists.edit': 'Editar checklists',
+  'checklists.delete': 'Excluir checklists',
+  'templates.create': 'Criar templates',
+  'templates.edit': 'Editar templates',
+  'templates.delete': 'Excluir templates',
+  'contacts.create': 'Criar contatos',
+  'contacts.edit': 'Editar contatos',
+  'contacts.delete': 'Excluir contatos',
+  'reports.view': 'Ver relatórios',
+  'admin.access': 'Acesso administração',
+};
+
+function PermissionsSubTab() {
+  const { profile } = useAuthContext();
+  const companyId = profile?.company_id;
+  const qc = useQueryClient();
+
+  const { data: permissions } = useQuery({
+    queryKey: ['all-role-permissions', companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('role_permissions')
+        .select('*')
+        .eq('company_id', companyId!);
+      if (error) throw error;
+      return data as { id: string; role: AppRole; permission: string; granted: boolean }[];
+    },
+  });
+
+  const upsertPermission = useMutation({
+    mutationFn: async (input: { role: AppRole; permission: string; granted: boolean }) => {
+      const existing = permissions?.find(p => p.role === input.role && p.permission === input.permission);
+      if (existing) {
+        const { error } = await supabase
+          .from('role_permissions')
+          .update({ granted: input.granted })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('role_permissions')
+          .insert({
+            company_id: companyId!,
+            role: input.role,
+            permission: input.permission,
+            granted: input.granted,
+          });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['all-role-permissions'] });
+      toast({ title: 'Permissão atualizada' });
+    },
+    onError: () => toast({ title: 'Erro ao atualizar', variant: 'destructive' }),
+  });
+
+  const isGranted = (role: AppRole, permission: string): boolean => {
+    const override = permissions?.find(p => p.role === role && p.permission === permission);
+    if (override) return override.granted;
+    // defaults
+    if (role === 'admin') return true;
+    if (role === 'supervisor') return permission !== 'admin.access';
+    // vendedor
+    return ['deals.create', 'deals.edit', 'contacts.create', 'contacts.edit'].includes(permission);
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-[200px]">Permissão</TableHead>
+              {ROLES.map(r => (
+                <TableHead key={r} className="text-center capitalize">{r}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ALL_PERMISSIONS.map(perm => (
+              <TableRow key={perm}>
+                <TableCell className="text-sm">{PERMISSION_LABELS[perm] ?? perm}</TableCell>
+                {ROLES.map(role => (
+                  <TableCell key={role} className="text-center">
+                    <Checkbox
+                      checked={isGranted(role, perm)}
+                      onCheckedChange={(checked) =>
+                        upsertPermission.mutate({ role, permission: perm, granted: !!checked })
+                      }
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function AdminPage() {
   const navigate = useNavigate();
+  const [usersSubTab, setUsersSubTab] = useState<'list' | 'permissions'>('list');
+
   return (
     <>
       <TopBar />
@@ -90,23 +215,45 @@ export default function AdminPage() {
               <h2 className="text-lg font-semibold">Usuários</h2>
               <Button size="sm" className="gap-1"><Plus className="h-4 w-4" />Convidar usuário</Button>
             </div>
-            <Card>
-              <CardContent className="pt-6 space-y-3">
-                {[
-                  { name: 'Admin Demo', role: 'admin', email: 'admin@demo.com' },
-                  { name: 'Supervisor Demo', role: 'supervisor', email: 'supervisor@demo.com' },
-                  { name: 'Vendedor Demo', role: 'vendedor', email: 'vendedor@demo.com' },
-                ].map((u, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div>
-                      <p className="font-medium text-sm">{u.name}</p>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
+
+            <div className="flex gap-2 mb-2">
+              <Button
+                size="sm"
+                variant={usersSubTab === 'list' ? 'default' : 'outline'}
+                onClick={() => setUsersSubTab('list')}
+              >
+                Lista
+              </Button>
+              <Button
+                size="sm"
+                variant={usersSubTab === 'permissions' ? 'default' : 'outline'}
+                onClick={() => setUsersSubTab('permissions')}
+              >
+                Permissões
+              </Button>
+            </div>
+
+            {usersSubTab === 'list' ? (
+              <Card>
+                <CardContent className="pt-6 space-y-3">
+                  {[
+                    { name: 'Admin Demo', role: 'admin', email: 'admin@demo.com' },
+                    { name: 'Supervisor Demo', role: 'supervisor', email: 'supervisor@demo.com' },
+                    { name: 'Vendedor Demo', role: 'vendedor', email: 'vendedor@demo.com' },
+                  ].map((u, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
+                      <div>
+                        <p className="font-medium text-sm">{u.name}</p>
+                        <p className="text-xs text-muted-foreground">{u.email}</p>
+                      </div>
+                      <Badge variant="secondary" className="capitalize">{u.role}</Badge>
                     </div>
-                    <Badge variant="secondary" className="capitalize">{u.role}</Badge>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : (
+              <PermissionsSubTab />
+            )}
           </TabsContent>
 
           <TabsContent value="automations" className="space-y-4">

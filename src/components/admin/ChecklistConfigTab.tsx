@@ -3,14 +3,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Copy, Trash2, Pencil, List, GitBranch, Sun } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Plus, Copy, Trash2, Pencil, List, GitBranch, Sun, BookOpen, Save } from 'lucide-react';
 import { useStageChecklists } from '@/hooks/useStageChecklists';
+import { useChecklistTemplates } from '@/hooks/useChecklistTemplates';
 import { ChecklistEditorDialog } from '@/components/admin/ChecklistEditorDialog';
 import { DuplicateChecklistDialog } from '@/components/admin/DuplicateChecklistDialog';
 import { toast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { SOLAR_CHECKLIST_TEMPLATES } from '@/lib/checklistTemplates';
+import { Label } from '@/components/ui/label';
 
 interface ChecklistConfigTabProps {
   stageId: string;
@@ -25,11 +28,18 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
     createItem,
   } = useStageChecklists(stageId);
 
+  const {
+    templates, isLoading: templatesLoading,
+    saveChecklistAsTemplate, applyTemplate, deleteTemplate,
+  } = useChecklistTemplates();
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [saveAsTemplateId, setSaveAsTemplateId] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState('');
 
   const handleCreate = async () => {
     try {
@@ -56,10 +66,12 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
     await updateChecklist.mutateAsync({ id, is_active: !current });
   };
 
-  const handleDuplicate = async (checklistId: string, targetStageId: string) => {
+  const handleDuplicate = async (checklistId: string, targetStageIds: string[]) => {
     try {
-      await duplicateChecklist.mutateAsync({ checklistId, targetStageId });
-      toast({ title: 'Checklist duplicado com sucesso' });
+      for (const targetStageId of targetStageIds) {
+        await duplicateChecklist.mutateAsync({ checklistId, targetStageId });
+      }
+      toast({ title: `Checklist duplicado para ${targetStageIds.length} etapa(s)` });
       setDuplicatingId(null);
     } catch {
       toast({ title: 'Erro ao duplicar', variant: 'destructive' });
@@ -94,6 +106,36 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
     }
   };
 
+  const handleSaveAsTemplate = async () => {
+    if (!saveAsTemplateId || !templateName.trim()) return;
+    try {
+      await saveChecklistAsTemplate.mutateAsync({ checklistId: saveAsTemplateId, name: templateName.trim() });
+      toast({ title: 'Salvo como template' });
+      setSaveAsTemplateId(null);
+      setTemplateName('');
+    } catch {
+      toast({ title: 'Erro ao salvar template', variant: 'destructive' });
+    }
+  };
+
+  const handleApplyPersisted = async (templateId: string) => {
+    try {
+      await applyTemplate.mutateAsync({ templateId, stageId });
+      toast({ title: 'Template aplicado com sucesso' });
+    } catch {
+      toast({ title: 'Erro ao aplicar template', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    try {
+      await deleteTemplate.mutateAsync(id);
+      toast({ title: 'Template excluído' });
+    } catch {
+      toast({ title: 'Erro ao excluir template', variant: 'destructive' });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -106,81 +148,133 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
   const getRulesCount = (clId: string) => rules.filter(r => r.checklist_id === clId).length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Checklists da etapa</h3>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setShowTemplates(true)}>
-            <Sun className="h-3.5 w-3.5" />
-            Template solar
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCreate}>
-            <Plus className="h-3.5 w-3.5" />
-            Novo Checklist
-          </Button>
-        </div>
-      </div>
-
-      {checklists.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center">
-            <List className="h-8 w-8 mx-auto mb-3 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Nenhum checklist configurado para esta etapa</p>
-            <Button size="sm" variant="link" className="mt-2 text-xs" onClick={handleCreate}>
-              Criar primeiro checklist →
+    <div className="space-y-6">
+      {/* Checklists Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Checklists da etapa</h3>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setShowTemplates(true)}>
+              <Sun className="h-3.5 w-3.5" />
+              Template solar
             </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        checklists.map((cl) => (
-          <Card key={cl.id} className={!cl.is_active ? 'opacity-60' : ''}>
-            <CardContent className="py-4 px-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="text-sm font-medium truncate">{cl.title}</h4>
-                    {!cl.is_active && <Badge variant="secondary" className="text-[10px]">Inativo</Badge>}
-                    {cl.block_stage_advance && (
-                      <Badge variant="destructive" className="text-[10px]">Bloqueia avanço</Badge>
-                    )}
-                  </div>
-                  {cl.description && (
-                    <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{cl.description}</p>
-                  )}
-                  <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <List className="h-3 w-3" />
-                      {getItemsCount(cl.id)} itens
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <GitBranch className="h-3 w-3" />
-                      {getRulesCount(cl.id)} regras
-                    </span>
-                    <span>v{cl.version}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Switch
-                    checked={cl.is_active}
-                    onCheckedChange={() => handleToggleActive(cl.id, cl.is_active)}
-                    className="mr-1"
-                  />
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingId(cl.id)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDuplicatingId(cl.id)}>
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(cl.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleCreate}>
+              <Plus className="h-3.5 w-3.5" />
+              Novo Checklist
+            </Button>
+          </div>
+        </div>
+
+        {checklists.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center">
+              <List className="h-8 w-8 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Nenhum checklist configurado para esta etapa</p>
+              <Button size="sm" variant="link" className="mt-2 text-xs" onClick={handleCreate}>
+                Criar primeiro checklist →
+              </Button>
             </CardContent>
           </Card>
-        ))
-      )}
+        ) : (
+          checklists.map((cl) => (
+            <Card key={cl.id} className={!cl.is_active ? 'opacity-60' : ''}>
+              <CardContent className="py-4 px-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="text-sm font-medium truncate">{cl.title}</h4>
+                      {!cl.is_active && <Badge variant="secondary" className="text-[10px]">Inativo</Badge>}
+                      {cl.block_stage_advance && (
+                        <Badge variant="destructive" className="text-[10px]">Bloqueia avanço</Badge>
+                      )}
+                    </div>
+                    {cl.description && (
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{cl.description}</p>
+                    )}
+                    <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <List className="h-3 w-3" />
+                        {getItemsCount(cl.id)} itens
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <GitBranch className="h-3 w-3" />
+                        {getRulesCount(cl.id)} regras
+                      </span>
+                      <span>v{cl.version}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Switch
+                      checked={cl.is_active}
+                      onCheckedChange={() => handleToggleActive(cl.id, cl.is_active)}
+                      className="mr-1"
+                    />
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingId(cl.id)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDuplicatingId(cl.id)}>
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8"
+                      onClick={() => { setSaveAsTemplateId(cl.id); setTemplateName(cl.title); }}
+                      title="Salvar como template"
+                    >
+                      <Save className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(cl.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
 
+      {/* Template Library Section */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Biblioteca de Templates</h3>
+        </div>
+        {templatesLoading ? (
+          <Skeleton className="h-16 w-full rounded-lg" />
+        ) : templates.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-center">
+              <p className="text-xs text-muted-foreground">Nenhum template personalizado. Use o botão <Save className="inline h-3 w-3" /> nos checklists acima para salvar.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          templates.map(t => (
+            <Card key={t.id}>
+              <CardContent className="py-3 px-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{t.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t.is_system ? 'Sistema' : 'Personalizado'} · {t.sector}
+                    {(t.template_data as any)?.items?.length ? ` · ${(t.template_data as any).items.length} itens` : ''}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => handleApplyPersisted(t.id)}>
+                    Aplicar
+                  </Button>
+                  {!t.is_system && (
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => handleDeleteTemplate(t.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Dialogs */}
       {editingId && (
         <ChecklistEditorDialog
           checklistId={editingId}
@@ -198,6 +292,27 @@ export function ChecklistConfigTab({ stageId, pipelineId, stages }: ChecklistCon
           onClose={() => setDuplicatingId(null)}
         />
       )}
+
+      {/* Save as template dialog */}
+      <Dialog open={!!saveAsTemplateId} onOpenChange={(open) => { if (!open) setSaveAsTemplateId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">Salvar como Template</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Nome do template</Label>
+              <Input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="Ex: Checklist de Abordagem" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveAsTemplateId(null)}>Cancelar</Button>
+            <Button onClick={handleSaveAsTemplate} disabled={!templateName.trim() || saveChecklistAsTemplate.isPending}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Solar templates dialog */}
       <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
