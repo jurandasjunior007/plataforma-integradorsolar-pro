@@ -15,7 +15,7 @@ import { useProfiles } from '@/hooks/useProfiles';
 import { useContacts } from '@/hooks/useContacts';
 import { useOrganizations } from '@/hooks/useOrganizations';
 const FIELD_OPTIONS = [
-  { value: '', label: '— Nenhum (item manual) —' },
+  { value: '__none__', label: '— Nenhum (item manual) —' },
   { value: 'value', label: 'Valor do negócio (R$)' },
   { value: 'contact_id', label: 'Contato vinculado' },
   { value: 'organization_id', label: 'Empresa vinculada' },
@@ -129,7 +129,7 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
   };
 
   const handleLinkedFieldChange = async (itemId: string, value: string) => {
-    await updateItem.mutateAsync({ id: itemId, linked_field: value || null });
+    await updateItem.mutateAsync({ id: itemId, linked_field: value === '__none__' ? null : (value || null) });
   };
 
   const handleDeleteItem = async (itemId: string) => {
@@ -334,7 +334,7 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
                   <div className="flex items-center gap-2 pl-6">
                     <Link2 className="h-3 w-3 text-muted-foreground shrink-0" />
                     <Select
-                      value={item.linked_field ?? ''}
+                      value={item.linked_field ?? '__none__'}
                       onValueChange={(val) => handleLinkedFieldChange(item.id, val)}
                     >
                       <SelectTrigger className="text-[11px] h-7 flex-1">
