@@ -1,37 +1,85 @@
 
 
-## Parte 1 — Migracao SQL (Correcao Critica + Novas Tabelas)
+## Plano de Execucao — Etapas Pendentes (5, 6, 7) + Correcao RLS
 
-A migracao NUNCA foi executada nas tentativas anteriores. Este plano executa APENAS a migracao SQL para desbloquear tudo.
+### PASSO 1 — Correcao RLS (Migracao SQL)
 
----
+As 3 politicas criadas na migracao anterior foram todas RESTRICTIVE. PostgreSQL exige pelo menos 1 PERMISSIVE para permitir acesso. Correcao necessaria:
 
-### O que sera feito (1 unica migracao SQL)
+- Dropar `checklist_items_company_access` (RESTRICTIVE duplicada) e recriar como PERMISSIVE
+- Dropar `role_permissions_tenant_isolation` (RESTRICTIVE) e recriar como PERMISSIVE
+- Dropar `checklist_templates_tenant_isolation` (RESTRICTIVE) e recriar como PERMISSIVE
 
-**1A. Corrigir RLS da tabela `checklist_items`**
-- A tabela so tem politica RESTRICTIVE, que bloqueia todas as operacoes mesmo para usuarios autenticados
-- Sera adicionada uma politica PERMISSIVE que permite operacoes quando `company_id` do registro bate com o `company_id` do usuario logado
-
-**1B. Criar tabela `role_permissions`**
-- Colunas: id (uuid), company_id, role (app_role), permission (text), granted (boolean), created_at
-- Constraint UNIQUE em (company_id, role, permission) para evitar duplicatas
-- RLS com politica RESTRICTIVE + PERMISSIVE para isolamento por empresa
-
-**1C. Criar tabela `checklist_templates`**
-- Colunas: id (uuid), company_id, name, sector (default 'geral'), template_data (jsonb), created_by, created_at, is_system (boolean)
-- RLS com politica RESTRICTIVE + PERMISSIVE para isolamento por empresa
+Importante: Um popup de confirmacao aparecera na tela. Precisa ser aprovado para continuar.
 
 ---
 
-### Acao necessaria do usuario
+### PASSO 2 — Hook usePermissions (Etapa 5)
 
-Quando eu iniciar a implementacao, aparecera um botao/popup pedindo para confirmar a execucao do SQL. Voce precisa clicar em "Aprovar" para que o SQL seja executado no banco de dados.
+Novo arquivo: `src/hooks/usePermissions.ts`
 
-Sem essa confirmacao, nada avanca — foi exatamente isso que travou nas vezes anteriores.
+- Busca o role do usuario logado via `user_roles`
+- Busca permissoes customizadas da tabela `role_permissions`
+- Exporta funcao `can(permission)` com defaults hardcoded:
+  - admin: tudo permitido
+  - supervisor: maioria (exceto admin.access)
+  - vendedor: basico (deals.create/edit/view, contacts.create/edit)
+- Lista de permissoes: deals.create, deals.edit, deals.delete, deals.view_all, stages.create, stages.edit, stages.delete, checklists.create, checklists.edit, checklists.delete, templates.create, templates.edit, templates.delete, contacts.create, contacts.edit, contacts.delete, reports.view, admin.access
 
 ---
 
-### Apos a migracao
+### PASSO 3 — Aba de Permissoes no Admin (Etapa 5)
 
-Com a migracao concluida, as Partes 2-4 (select dinamico, tooltip, CRUD de etapas) poderao ser implementadas sem travamento.
+Arquivo: `src/pages/AdminPage.tsx`
+
+- Na aba "Usuarios", adicionar sub-tabs "Lista" e "Permissoes"
+- Sub-tab "Lista": conteudo atual (lista de usuarios)
+- Sub-tab "Permissoes": tabela matriz com 3 colunas (Admin, Supervisor, Vendedor)
+- Linhas = cada permissao, celulas = checkbox
+- Cada checkbox faz upsert na tabela `role_permissions`
+
+---
+
+### PASSO 4 — Hook useChecklistTemplates (Etapa 6)
+
+Novo arquivo: `src/hooks/useChecklistTemplates.ts`
+
+- CRUD completo: listar, criar, atualizar, excluir templates
+- Funcao `applyTemplate(templateId, stageId)`: le template_data, cria checklist + itens
+- Funcao `saveAsTemplate(checklistId, name)`: le checklist + itens e salva como template
+
+---
+
+### PASSO 5 — Biblioteca de Templates (Etapa 6)
+
+Arquivo: `src/components/admin/ChecklistConfigTab.tsx`
+
+- Secao "Biblioteca de Templates" abaixo dos checklists
+- Botao "Salvar como Template" ao lado de cada checklist existente
+- Listagem de templates (sistema + personalizados) com botoes aplicar/editar/excluir
+- Manter os templates hardcoded (SOLAR_CHECKLIST_TEMPLATES) como fallback
+
+---
+
+### PASSO 6 — Duplicacao Multi-Etapa (Etapa 7)
+
+Arquivo: `src/components/admin/DuplicateChecklistDialog.tsx`
+
+- Substituir Select unico por lista de checkboxes (multiplas etapas de destino)
+- Secao de preview mostrando os itens que serao duplicados
+- Ao duplicar, iterar sobre cada etapa selecionada
+- Sufixo "(copia)" quando ja existe checklist com mesmo nome
+
+---
+
+### Resumo de Arquivos
+
+| Arquivo | Acao |
+|---|---|
+| Migracao SQL | Corrigir 3 politicas RLS de RESTRICTIVE para PERMISSIVE |
+| `src/hooks/usePermissions.ts` | Novo — hook RBAC com funcao can() |
+| `src/pages/AdminPage.tsx` | Adicionar sub-aba de permissoes na aba Usuarios |
+| `src/hooks/useChecklistTemplates.ts` | Novo — CRUD de templates persistidos |
+| `src/components/admin/ChecklistConfigTab.tsx` | Adicionar biblioteca de templates |
+| `src/components/admin/DuplicateChecklistDialog.tsx` | Multi-select com preview |
 
