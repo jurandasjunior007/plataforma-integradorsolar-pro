@@ -50,7 +50,7 @@ export default function DealViewPage() {
   );
 
   // Fetch checklists for current stage to validate before advancing
-  const { checklists: currentChecklists, items: checklistItems } = useStageChecklists(currentStage?.id);
+  const { checklists: currentChecklists, items: checklistItems, rules: checklistRules } = useStageChecklists(currentStage?.id);
 
   const [validationModal, setValidationModal] = useState<{
     open: boolean;
@@ -70,6 +70,26 @@ export default function DealViewPage() {
       custom_fields: deal.custom_fields ?? {},
     };
   }, [deal]);
+
+  // Calculate checklist progress for header
+  const checklistProgress = useMemo(() => {
+    if (!dealForComponents) return { completed: 0, total: 0, hasBlockers: false };
+    const activeChecklists = currentChecklists.filter(cl => cl.is_active);
+    const activeIds = activeChecklists.map(cl => cl.id);
+    const relevantItems = checklistItems.filter(i => activeIds.includes(i.checklist_id));
+    const total = relevantItems.length;
+    const completed = relevantItems.filter(item => {
+      const value = getFieldValue(dealForComponents, item.linked_field);
+      return value !== null && value !== undefined && value !== '' && value !== 0;
+    }).length;
+    const hasBlockers = relevantItems
+      .filter(i => i.block_stage_advance)
+      .some(item => {
+        const value = getFieldValue(dealForComponents, item.linked_field);
+        return value === null || value === undefined || value === '' || value === 0;
+      });
+    return { completed, total, hasBlockers };
+  }, [currentChecklists, checklistItems, dealForComponents]);
 
   const handleStageChange = useCallback(async (stageId: string) => {
     if (!deal || !dealForComponents) return;
@@ -215,6 +235,7 @@ export default function DealViewPage() {
         pipelineName={deal.pipeline?.name ?? ''}
         onBack={() => navigate('/negocios')}
         onDuplicate={handleDuplicate}
+        checklistProgress={checklistProgress}
       />
 
       <DealStageStepper

@@ -54,7 +54,6 @@ export function useStageChecklists(stageId?: string) {
     queryKey: ['checklist-items', stageId],
     enabled: !!stageId && !!companyId,
     queryFn: async () => {
-      // Get all checklist IDs for this stage first
       const { data: checklists } = await supabase
         .from('stage_checklists')
         .select('id')
@@ -138,7 +137,6 @@ export function useStageChecklists(stageId?: string) {
 
   const duplicateChecklist = useMutation({
     mutationFn: async (input: { checklistId: string; targetStageId: string }) => {
-      // 1. Get source checklist
       const { data: src, error: e1 } = await supabase
         .from('stage_checklists')
         .select('*')
@@ -146,7 +144,6 @@ export function useStageChecklists(stageId?: string) {
         .single();
       if (e1 || !src) throw e1 || new Error('Not found');
 
-      // 2. Create new checklist
       const { data: newCl, error: e2 } = await supabase
         .from('stage_checklists')
         .insert({
@@ -163,7 +160,6 @@ export function useStageChecklists(stageId?: string) {
         .single();
       if (e2 || !newCl) throw e2;
 
-      // 3. Copy items
       const { data: items } = await supabase
         .from('checklist_items')
         .select('*')
@@ -184,7 +180,6 @@ export function useStageChecklists(stageId?: string) {
         await supabase.from('checklist_items').insert(newItems);
       }
 
-      // 4. Copy rules
       const { data: rules } = await supabase
         .from('checklist_rules')
         .select('*')
@@ -208,9 +203,8 @@ export function useStageChecklists(stageId?: string) {
     },
   });
 
-  // Checklist Items CRUD
   const createItem = useMutation({
-    mutationFn: async (input: { checklist_id: string; title: string; is_required?: boolean; block_stage_advance?: boolean; description?: string }) => {
+    mutationFn: async (input: { checklist_id: string; title: string; is_required?: boolean; block_stage_advance?: boolean; description?: string; linked_field?: string | null }) => {
       const { data, error } = await supabase
         .from('checklist_items')
         .insert({
@@ -220,6 +214,7 @@ export function useStageChecklists(stageId?: string) {
           description: input.description ?? null,
           is_required: input.is_required ?? false,
           block_stage_advance: input.block_stage_advance ?? false,
+          linked_field: input.linked_field ?? null,
           position: 0,
         })
         .select()
@@ -231,7 +226,7 @@ export function useStageChecklists(stageId?: string) {
   });
 
   const updateItem = useMutation({
-    mutationFn: async (input: { id: string; title?: string; is_required?: boolean; block_stage_advance?: boolean; description?: string; position?: number }) => {
+    mutationFn: async (input: { id: string; title?: string; is_required?: boolean; block_stage_advance?: boolean; description?: string; position?: number; linked_field?: string | null }) => {
       const { id, ...updates } = input;
       const { error } = await supabase
         .from('checklist_items')
@@ -250,7 +245,6 @@ export function useStageChecklists(stageId?: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['checklist-items'] }),
   });
 
-  // Rules CRUD
   const createRule = useMutation({
     mutationFn: async (input: { checklist_id: string; condition_field: string; condition_operator: string; condition_value: string }) => {
       const { data, error } = await supabase

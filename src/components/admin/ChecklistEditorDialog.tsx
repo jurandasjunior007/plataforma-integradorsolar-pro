@@ -7,10 +7,55 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, GripVertical, GitBranch } from 'lucide-react';
+import { Plus, Trash2, GripVertical, GitBranch, Link2, AlertCircle } from 'lucide-react';
 import { useStageChecklists } from '@/hooks/useStageChecklists';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
+
+const FIELD_OPTIONS = [
+  { value: '', label: '— Nenhum (item manual) —' },
+  { value: 'value', label: 'Valor do negócio (R$)' },
+  { value: 'contact_id', label: 'Contato vinculado' },
+  { value: 'organization_id', label: 'Empresa vinculada' },
+  { value: 'owner_id', label: 'Responsável pelo negócio' },
+  { value: 'custom_fields.consumo_kwh', label: 'Consumo mensal (kWh)' },
+  { value: 'custom_fields.tipo_telhado', label: 'Tipo de telhado' },
+  { value: 'custom_fields.potencia_kwp', label: 'Potência do sistema (kWp)' },
+  { value: 'custom_fields.tarifa_energia', label: 'Tarifa de energia (R$/kWh)' },
+  { value: 'custom_fields.tipo_cliente', label: 'Tipo de cliente (PF/PJ)' },
+  { value: 'custom_fields.forma_pagamento', label: 'Forma de pagamento' },
+  { value: 'custom_fields.data_instalacao', label: 'Data de instalação' },
+  { value: 'custom_fields.contrato_assinado', label: 'Contrato assinado?' },
+  { value: 'custom_fields.visita_realizada', label: 'Visita técnica realizada?' },
+  { value: 'custom_fields.proposta_aprovada', label: 'Proposta aprovada?' },
+  { value: 'custom_fields.homolog_enviada', label: 'Homologação enviada?' },
+  { value: 'custom_fields.num_homologacao', label: 'Número de homologação' },
+  { value: 'custom_fields.pagamento_quitado', label: 'Pagamento quitado?' },
+  { value: 'custom_fields.nfe_emitida', label: 'NF-e emitida?' },
+];
+
+const operators = [
+  { value: 'equals', label: 'Igual a' },
+  { value: 'not_equals', label: 'Diferente de' },
+  { value: 'contains', label: 'Contém' },
+  { value: 'not_empty', label: 'Não está vazio' },
+  { value: 'is_empty', label: 'Está vazio' },
+  { value: 'greater_than', label: 'Maior que' },
+  { value: 'less_than', label: 'Menor que' },
+];
+
+const conditionFields = [
+  { value: 'value', label: 'Valor do negócio' },
+  { value: 'status', label: 'Status do negócio' },
+  { value: 'contact_id', label: 'Contato vinculado' },
+  { value: 'organization_id', label: 'Empresa vinculada' },
+  { value: 'owner_id', label: 'Responsável' },
+  { value: 'custom_fields.tipo_cliente', label: 'Tipo de cliente' },
+  { value: 'custom_fields.forma_pagamento', label: 'Forma de pagamento' },
+  { value: 'custom_fields.consumo_kwh', label: 'Consumo mensal (kWh)' },
+  { value: 'custom_fields.potencia_kwp', label: 'Potência (kWp)' },
+  { value: 'tags', label: 'Tags' },
+];
 
 interface ChecklistEditorDialogProps {
   checklistId: string;
@@ -38,6 +83,8 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
   const [ruleField, setRuleField] = useState('');
   const [ruleOperator, setRuleOperator] = useState('equals');
   const [ruleValue, setRuleValue] = useState('');
+
+  const noValueNeeded = ruleOperator === 'not_empty' || ruleOperator === 'is_empty';
 
   const handleSave = async () => {
     try {
@@ -75,18 +122,23 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
     await updateItem.mutateAsync({ id: itemId, block_stage_advance: !current });
   };
 
+  const handleLinkedFieldChange = async (itemId: string, value: string) => {
+    await updateItem.mutateAsync({ id: itemId, linked_field: value || null });
+  };
+
   const handleDeleteItem = async (itemId: string) => {
     await deleteItem.mutateAsync(itemId);
   };
 
   const handleAddRule = async () => {
-    if (!ruleField || !ruleValue) return;
+    if (!ruleField) return;
+    if (!noValueNeeded && !ruleValue) return;
     try {
       await createRule.mutateAsync({
         checklist_id: checklistId,
         condition_field: ruleField,
         condition_operator: ruleOperator,
-        condition_value: ruleValue,
+        condition_value: noValueNeeded ? '' : ruleValue,
       });
       setRuleField('');
       setRuleValue('');
@@ -95,20 +147,9 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
     }
   };
 
-  const operators = [
-    { value: 'equals', label: 'Igual a' },
-    { value: 'not_equals', label: 'Diferente de' },
-    { value: 'contains', label: 'Contém' },
-    { value: 'greater_than', label: 'Maior que' },
-    { value: 'less_than', label: 'Menor que' },
-  ];
-
-  const conditionFields = [
-    { value: 'value', label: 'Valor do negócio' },
-    { value: 'payment_type', label: 'Tipo de pagamento' },
-    { value: 'tags', label: 'Tags' },
-    { value: 'contact_type', label: 'Tipo de contato' },
-  ];
+  const getFieldLabel = (fieldValue: string) => {
+    return FIELD_OPTIONS.find(f => f.value === fieldValue)?.label ?? fieldValue;
+  };
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
@@ -152,12 +193,16 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
 
           {checklistRules.length > 0 && (
             <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-amber-500/10 rounded px-3 py-1.5">
+                <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />
+                Quando há regras definidas, este checklist só aparece para negócios que satisfazem TODAS as condições.
+              </div>
               {checklistRules.map((rule, idx) => (
                 <div key={rule.id} className="flex items-center gap-2 text-xs bg-muted/50 rounded-md px-3 py-2">
                   {idx > 0 && <Badge variant="outline" className="text-[9px] mr-1">AND</Badge>}
-                  <span className="font-medium">{rule.condition_field}</span>
-                  <span className="text-muted-foreground">{rule.condition_operator}</span>
-                  <span className="font-medium">{rule.condition_value}</span>
+                  <span className="font-medium">{conditionFields.find(f => f.value === rule.condition_field)?.label ?? rule.condition_field}</span>
+                  <span className="text-muted-foreground">{operators.find(o => o.value === rule.condition_operator)?.label ?? rule.condition_operator}</span>
+                  {rule.condition_value && <span className="font-medium">{rule.condition_value}</span>}
                   <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" onClick={() => deleteRule.mutateAsync(rule.id)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -178,7 +223,7 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
               </SelectContent>
             </Select>
             <Select value={ruleOperator} onValueChange={setRuleOperator}>
-              <SelectTrigger className="text-xs h-8 w-[130px]">
+              <SelectTrigger className="text-xs h-8 w-[150px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -187,12 +232,14 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              value={ruleValue}
-              onChange={(e) => setRuleValue(e.target.value)}
-              placeholder="Valor"
-              className="text-xs h-8 flex-1"
-            />
+            {!noValueNeeded && (
+              <Input
+                value={ruleValue}
+                onChange={(e) => setRuleValue(e.target.value)}
+                placeholder="Valor"
+                className="text-xs h-8 flex-1"
+              />
+            )}
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleAddRule}>
               <Plus className="h-3 w-3" />
             </Button>
@@ -208,36 +255,60 @@ export function ChecklistEditorDialog({ checklistId, stageId, onClose }: Checkli
           </p>
 
           {checklistItems.length > 0 && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {checklistItems.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 bg-muted/30 rounded-md px-3 py-2.5 group">
-                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 cursor-grab shrink-0" />
-                  <span className="text-sm flex-1 min-w-0 truncate">{item.title}</span>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="flex items-center gap-1">
-                      <Label className="text-[10px] text-muted-foreground">Obrigatório</Label>
-                      <Switch
-                        checked={item.is_required}
-                        onCheckedChange={() => handleToggleRequired(item.id, item.is_required)}
-                        className="scale-75"
-                      />
+                <div key={item.id} className="bg-muted/30 rounded-md px-3 py-2.5 group space-y-2">
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 cursor-grab shrink-0" />
+                    <span className="text-sm flex-1 min-w-0 truncate">{item.title}</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-1">
+                        <Label className="text-[10px] text-muted-foreground">Obrigatório</Label>
+                        <Switch
+                          checked={item.is_required}
+                          onCheckedChange={() => handleToggleRequired(item.id, item.is_required)}
+                          className="scale-75"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Label className="text-[10px] text-muted-foreground">Bloqueia</Label>
+                        <Switch
+                          checked={item.block_stage_advance}
+                          onCheckedChange={() => handleToggleBlock(item.id, item.block_stage_advance)}
+                          className="scale-75"
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDeleteItem(item.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Label className="text-[10px] text-muted-foreground">Bloqueia</Label>
-                      <Switch
-                        checked={item.block_stage_advance}
-                        onCheckedChange={() => handleToggleBlock(item.id, item.block_stage_advance)}
-                        className="scale-75"
-                      />
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleDeleteItem(item.id)}
+                  </div>
+                  {/* Linked field select */}
+                  <div className="flex items-center gap-2 pl-6">
+                    <Link2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <Select
+                      value={item.linked_field ?? ''}
+                      onValueChange={(val) => handleLinkedFieldChange(item.id, val)}
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                      <SelectTrigger className="text-[11px] h-7 flex-1">
+                        <SelectValue placeholder="Campo vinculado (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FIELD_OPTIONS.map(f => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {item.linked_field && (
+                      <Badge variant="secondary" className="text-[9px] shrink-0">
+                        Auto
+                      </Badge>
+                    )}
                   </div>
                 </div>
               ))}
