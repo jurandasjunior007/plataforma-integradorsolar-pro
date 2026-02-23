@@ -1,49 +1,37 @@
 
-## Plano Simplificado — Parte 1 de 3
 
-Para evitar travamento, este plano cobre APENAS as correcoes criticas e primeiras melhorias. As partes seguintes serao implementadas em mensagens separadas.
+## Parte 1 — Migracao SQL (Correcao Critica + Novas Tabelas)
 
----
-
-### PASSO 1 — Migracao SQL (requer aprovacao do popup)
-
-Quando a implementacao comecar, vai aparecer um popup/botao pedindo para confirmar a execucao do SQL. Voce precisa clicar em "Aprovar" ou "Confirmar" nesse popup.
-
-O SQL faz 3 coisas:
-1. Adiciona politica PERMISSIVE na tabela `checklist_items` (corrige o erro ao criar itens)
-2. Cria tabela `role_permissions` para o sistema de permissoes
-3. Cria tabela `checklist_templates` para templates persistidos
-
-### PASSO 2 — Correcao do Select Dinamico (ChecklistEditorDialog)
-
-Arquivo: `src/components/admin/ChecklistEditorDialog.tsx`
-
-- Quando o campo da regra condicional for `owner_id`, trocar o input de texto por um Select que busca usuarios reais do banco
-- Quando for `contact_id`, buscar contatos reais
-- Quando for `organization_id`, buscar organizacoes reais
-- Salvar o UUID selecionado (nao o nome digitado)
-
-### PASSO 3 — Tooltip de Descricao no Funil
-
-Arquivo: `src/components/deals/view/DealChecklistPanel.tsx`
-
-- Adicionar icone de ajuda (HelpCircle) ao lado do titulo de cada checklist
-- Ao passar o cursor no icone, mostra a descricao do checklist em um tooltip
-
-### PASSO 4 — CRUD de Etapas + Drag-and-Drop
-
-Arquivo: `src/hooks/usePipelines.ts`
-- Adicionar mutations: createStage, updateStage, deleteStage, reorderStages
-
-Arquivo: `src/components/admin/StageListSidebar.tsx`
-- Botao "+ Nova Etapa"
-- Icones de editar e excluir em cada etapa
-- Drag-and-drop para reordenar etapas usando @dnd-kit/sortable
+A migracao NUNCA foi executada nas tentativas anteriores. Este plano executa APENAS a migracao SQL para desbloquear tudo.
 
 ---
 
-### IMPORTANTE
+### O que sera feito (1 unica migracao SQL)
 
-Quando a implementacao iniciar, o primeiro passo sera a migracao SQL. Um popup de confirmacao aparecera na tela. Voce precisa clicar para aprovar. Sem essa aprovacao, nada mais pode avancar.
+**1A. Corrigir RLS da tabela `checklist_items`**
+- A tabela so tem politica RESTRICTIVE, que bloqueia todas as operacoes mesmo para usuarios autenticados
+- Sera adicionada uma politica PERMISSIVE que permite operacoes quando `company_id` do registro bate com o `company_id` do usuario logado
 
-As partes restantes (RBAC completo, templates persistidos, duplicacao multi-etapa) serao implementadas em uma segunda rodada apos esta primeira ser concluida.
+**1B. Criar tabela `role_permissions`**
+- Colunas: id (uuid), company_id, role (app_role), permission (text), granted (boolean), created_at
+- Constraint UNIQUE em (company_id, role, permission) para evitar duplicatas
+- RLS com politica RESTRICTIVE + PERMISSIVE para isolamento por empresa
+
+**1C. Criar tabela `checklist_templates`**
+- Colunas: id (uuid), company_id, name, sector (default 'geral'), template_data (jsonb), created_by, created_at, is_system (boolean)
+- RLS com politica RESTRICTIVE + PERMISSIVE para isolamento por empresa
+
+---
+
+### Acao necessaria do usuario
+
+Quando eu iniciar a implementacao, aparecera um botao/popup pedindo para confirmar a execucao do SQL. Voce precisa clicar em "Aprovar" para que o SQL seja executado no banco de dados.
+
+Sem essa confirmacao, nada avanca — foi exatamente isso que travou nas vezes anteriores.
+
+---
+
+### Apos a migracao
+
+Com a migracao concluida, as Partes 2-4 (select dinamico, tooltip, CRUD de etapas) poderao ser implementadas sem travamento.
+
